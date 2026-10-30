@@ -1,0 +1,25 @@
+[project]
+name = "text-to-sql-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Pranjal G", email = "pranj3006@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "dotenv>=0.9.9",
+    "fastapi>=0.162.0",
+    "openai>=3.41.0",
+    "psycopg[binary]>=3.3.6",
+    "sqlalchemy>=2.1.6",
+    "sqlglot>=30.26.0",
+    "uvicorn>=0.54.0",
+]
+
+[project.scripts]
+text-to-sql-agent = "text_to_sql_agent:main"
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14.0"]
+build-backend = "uv_build"
