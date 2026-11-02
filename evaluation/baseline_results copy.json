@@ -1,0 +1,197 @@
+{
+  "total": 12,
+  "passed": 5,
+  "failed": 6,
+  "errors": 0,
+  "accuracy": 0.4167,
+  "results": [
+    {
+      "id": "Q01",
+      "question": "What is the total net revenue from completed orders?",
+      "status": "PASS",
+      "result_match": true,
+      "output_schema_match": true,
+      "expected_columns": [
+        "total_net_revenue"
+      ],
+      "actual_columns": [
+        "total_net_revenue"
+      ],
+      "missing_columns": [],
+      "extra_columns": [],
+      "latency_seconds": 3.467
+    },
+    {
+      "id": "Q02",
+      "question": "Which 5 products generated the highest net revenue?",
+      "status": "PASS_WITH_SCHEMA_MISMATCH",
+      "result_match": true,
+      "output_schema_match": false,
+      "expected_columns": [
+        "product_name",
+        "net_revenue"
+      ],
+      "actual_columns": [
+        "product_id",
+        "product_name",
+        "net_revenue"
+      ],
+      "missing_columns": [],
+      "extra_columns": [
+        "product_id"
+      ],
+      "latency_seconds": 3.485
+    },
+    {
+      "id": "Q03",
+      "question": "What is the net revenue by customer region?",
+      "status": "PASS",
+      "result_match": true,
+      "output_schema_match": true,
+      "expected_columns": [
+        "region",
+        "net_revenue"
+      ],
+      "actual_columns": [
+        "region",
+        "net_revenue"
+      ],
+      "missing_columns": [],
+      "extra_columns": [],
+      "latency_seconds": 4.312
+    },
+    {
+      "id": "Q04",
+      "question": "How many completed orders were placed in Q2 2026?",
+      "status": "FAIL",
+      "result_match": false,
+      "output_schema_match": false,
+      "missing_columns": [
+        "completed_order_count"
+      ],
+      "extra_columns": [
+        "completed_orders_count"
+      ],
+      "latency_seconds": 2.287
+    },
+    {
+      "id": "Q05",
+      "question": "What is the average order value for completed orders?",
+      "status": "PASS",
+      "result_match": true,
+      "output_schema_match": true,
+      "expected_columns": [
+        "average_order_value"
+      ],
+      "actual_columns": [
+        "average_order_value"
+      ],
+      "missing_columns": [],
+      "extra_columns": [],
+      "latency_seconds": 14.235
+    },
+    {
+      "id": "Q06",
+      "question": "Which products have no revenue from completed orders?",
+      "status": "PASS",
+      "result_match": true,
+      "output_schema_match": true,
+      "expected_columns": [],
+      "actual_columns": [],
+      "missing_columns": [],
+      "extra_columns": [],
+      "latency_seconds": 2.739
+    },
+    {
+      "id": "Q07",
+      "question": "What is the net revenue by product category?",
+      "status": "FAIL",
+      "result_match": false,
+      "output_schema_match": false,
+      "missing_columns": [
+        "category"
+      ],
+      "extra_columns": [
+        "product_category"
+      ],
+      "latency_seconds": 5.25
+    },
+    {
+      "id": "Q08",
+      "question": "What is the monthly net revenue for 2026?",
+      "status": "PASS",
+      "result_match": true,
+      "output_schema_match": true,
+      "expected_columns": [
+        "month",
+        "net_revenue"
+      ],
+      "actual_columns": [
+        "month",
+        "net_revenue"
+      ],
+      "missing_columns": [],
+      "extra_columns": [],
+      "latency_seconds": 2.31
+    },
+    {
+      "id": "Q09",
+      "question": "What is the net line value associated with cancelled orders, for reconciliation purposes?",
+      "status": "FAIL",
+      "result_match": false,
+      "output_schema_match": false,
+      "missing_columns": [
+        "cancelled_order_line_value"
+      ],
+      "extra_columns": [
+        "cancelled_net_line_value"
+      ],
+      "latency_seconds": 1.898
+    },
+    {
+      "id": "Q10",
+      "question": "Which customers generated the highest net revenue?",
+      "status": "FAIL",
+      "result_match": false,
+      "output_schema_match": false,
+      "missing_columns": [
+        "net_revenue"
+      ],
+      "extra_columns": [
+        "customer_id",
+        "total_net_revenue"
+      ],
+      "latency_seconds": 3.035
+    },
+    {
+      "id": "Q11",
+      "question": "What is the total discount amount on completed orders?",
+      "status": "FAIL",
+      "result_match": false,
+      "output_schema_match": false,
+      "missing_columns": [
+        "total_discount"
+      ],
+      "extra_columns": [
+        "total_discount_amount"
+      ],
+      "latency_seconds": 2.278
+    },
+    {
+      "id": "Q12",
+      "question": "What is the total net revenue from completed orders between 2027-01-01 and 2027-02-01?",
+      "status": "FAIL",
+      "result_match": false,
+      "output_schema_match": true,
+      "expected_columns": [
+        "total_net_revenue"
+      ],
+      "actual_columns": [
+        "total_net_revenue"
+      ],
+      "missing_columns": [],
+      "extra_columns": [],
+      "latency_seconds": 3.077
+    }
+  ]
+}

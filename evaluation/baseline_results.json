@@ -1,0 +1,232 @@
+{
+  "total": 5,
+  "passed": 4,
+  "failed": 1,
+  "errors": 0,
+  "accuracy": 0.8,
+  "results": [
+    {
+      "id": "Q02",
+      "question": "Which 5 products generated the highest net revenue?",
+      "status": "PASS",
+      "expected_columns": [
+        "product_name",
+        "net_revenue"
+      ],
+      "result_match": true,
+      "output_schema_match": true,
+      "actual_columns": [
+        "product_name",
+        "net_revenue"
+      ],
+      "missing_columns": [],
+      "extra_columns": [],
+      "expected_rows": [
+        {
+          "product_name": "Coffee",
+          "net_revenue": "16980.000000"
+        },
+        {
+          "product_name": "Tea",
+          "net_revenue": "9075.000000"
+        },
+        {
+          "product_name": "Shampoo",
+          "net_revenue": "6030.000000"
+        },
+        {
+          "product_name": "Biscuits",
+          "net_revenue": "4350.000000"
+        },
+        {
+          "product_name": "Soap",
+          "net_revenue": "3520.000000"
+        }
+      ],
+      "actual_rows": [
+        {
+          "product_name": "Coffee",
+          "net_revenue": "16980.000000"
+        },
+        {
+          "product_name": "Tea",
+          "net_revenue": "9075.000000"
+        },
+        {
+          "product_name": "Shampoo",
+          "net_revenue": "6030.000000"
+        },
+        {
+          "product_name": "Biscuits",
+          "net_revenue": "4350.000000"
+        },
+        {
+          "product_name": "Soap",
+          "net_revenue": "3520.000000"
+        }
+      ],
+      "generated_sql": "SELECT p.product_name, COALESCE(SUM(oi.quantity * oi.unit_price * (1 - oi.discount_pct)), 0) AS net_revenue FROM products AS p JOIN order_items AS oi ON p.product_id = oi.product_id JOIN orders AS o ON oi.order_id = o.order_id WHERE o.status = 'completed' GROUP BY p.product_name ORDER BY net_revenue DESC LIMIT 5",
+      "latency_seconds": 3.906
+    },
+    {
+      "id": "Q03",
+      "question": "What is the net revenue by customer region?",
+      "status": "PASS",
+      "expected_columns": [
+        "region",
+        "net_revenue"
+      ],
+      "result_match": true,
+      "output_schema_match": true,
+      "actual_columns": [
+        "region",
+        "net_revenue"
+      ],
+      "missing_columns": [],
+      "extra_columns": [],
+      "expected_rows": [
+        {
+          "region": "East",
+          "net_revenue": "2720.000000"
+        },
+        {
+          "region": "North",
+          "net_revenue": "15840.000000"
+        },
+        {
+          "region": "South",
+          "net_revenue": "6980.000000"
+        },
+        {
+          "region": "West",
+          "net_revenue": "16735.000000"
+        }
+      ],
+      "actual_rows": [
+        {
+          "region": "East",
+          "net_revenue": "2720.000000"
+        },
+        {
+          "region": "North",
+          "net_revenue": "15840.000000"
+        },
+        {
+          "region": "South",
+          "net_revenue": "6980.000000"
+        },
+        {
+          "region": "West",
+          "net_revenue": "16735.000000"
+        }
+      ],
+      "generated_sql": "SELECT c.region AS region, COALESCE(SUM(oi.quantity * oi.unit_price * (1 - oi.discount_pct)), 0) AS net_revenue FROM customers AS c JOIN orders AS o ON c.customer_id = o.customer_id JOIN order_items AS oi ON o.order_id = oi.order_id WHERE o.status = 'completed' GROUP BY c.region ORDER BY c.region LIMIT 100",
+      "latency_seconds": 2.601
+    },
+    {
+      "id": "Q04",
+      "question": "How many completed orders were placed in Q2 2026?",
+      "status": "PASS",
+      "expected_columns": [
+        "completed_order_count"
+      ],
+      "result_match": true,
+      "output_schema_match": true,
+      "actual_columns": [
+        "completed_order_count"
+      ],
+      "missing_columns": [],
+      "extra_columns": [],
+      "expected_rows": [
+        {
+          "completed_order_count": 3
+        }
+      ],
+      "actual_rows": [
+        {
+          "completed_order_count": 3
+        }
+      ],
+      "generated_sql": "SELECT COUNT(*) AS completed_order_count FROM orders WHERE status = 'completed' AND order_date >= '2026-04-01' AND order_date < '2026-07-01' LIMIT 100",
+      "latency_seconds": 2.447
+    },
+    {
+      "id": "Q07",
+      "question": "What is the net revenue by product category?",
+      "status": "PASS",
+      "expected_columns": [
+        "category",
+        "net_revenue"
+      ],
+      "result_match": true,
+      "output_schema_match": true,
+      "actual_columns": [
+        "category",
+        "net_revenue"
+      ],
+      "missing_columns": [],
+      "extra_columns": [],
+      "expected_rows": [
+        {
+          "category": "Beverages",
+          "net_revenue": "26055.000000"
+        },
+        {
+          "category": "Personal Care",
+          "net_revenue": "9550.000000"
+        },
+        {
+          "category": "Snacks",
+          "net_revenue": "6670.000000"
+        }
+      ],
+      "actual_rows": [
+        {
+          "category": "Beverages",
+          "net_revenue": "26055.000000"
+        },
+        {
+          "category": "Personal Care",
+          "net_revenue": "9550.000000"
+        },
+        {
+          "category": "Snacks",
+          "net_revenue": "6670.000000"
+        }
+      ],
+      "generated_sql": "SELECT p.category AS category, COALESCE(SUM(oi.quantity * oi.unit_price * (1 - oi.discount_pct)), 0) AS net_revenue FROM products AS p JOIN order_items AS oi ON p.product_id = oi.product_id JOIN orders AS o ON oi.order_id = o.order_id WHERE o.status = 'completed' GROUP BY p.category ORDER BY p.category LIMIT 100",
+      "latency_seconds": 3.904
+    },
+    {
+      "id": "Q09",
+      "question": "What is the net line value associated with cancelled orders, for reconciliation purposes?",
+      "status": "FAIL",
+      "expected_columns": [
+        "cancelled_order_line_value"
+      ],
+      "result_match": false,
+      "output_schema_match": false,
+      "actual_columns": [
+        "net_line_value"
+      ],
+      "missing_columns": [
+        "cancelled_order_line_value"
+      ],
+      "extra_columns": [
+        "net_line_value"
+      ],
+      "expected_rows": [
+        {
+          "cancelled_order_line_value": "10000.000000"
+        }
+      ],
+      "actual_rows": [
+        {
+          "net_line_value": "10000.000000"
+        }
+      ],
+      "generated_sql": "SELECT COALESCE(SUM(quantity * unit_price * (1 - discount_pct)), 0) AS net_line_value FROM order_items JOIN orders ON order_items.order_id = orders.order_id WHERE orders.status = 'cancelled' LIMIT 100",
+      "latency_seconds": 2.734
+    }
+  ]
+}

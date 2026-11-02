@@ -25,6 +25,18 @@ engine = create_engine(
 
 # Baseline context: intentionally static.
 # Later, RAG will retrieve only the relevant schema and business definitions.
+BUSINESS_RULES = """
+- Gross line value = quantity * unit_price.
+- Net line value = quantity * unit_price * (1 - discount_pct).
+- Recognized revenue includes net line value from completed orders only.
+- Cancelled orders are excluded from recognized revenue.
+- The net line value formula applies regardless of order status.
+  For reconciliation questions about cancelled orders, calculate net
+  line value using the discount formula and filter for cancelled orders.
+- Date filters use an inclusive start date and an exclusive end date.
+- Use consistent currency units.
+"""
+
 SCHEMA_CONTEXT = """
 Database: app1_db
 SQL dialect: PostgreSQL
@@ -63,16 +75,6 @@ Relationships:
 - orders.customer_id -> customers.customer_id
 - order_items.order_id -> orders.order_id
 - order_items.product_id -> products.product_id
-
-Business rules:
-- Gross line value = quantity * unit_price.
-- Net line revenue = quantity * unit_price * (1 - discount_pct).
-- Recognized revenue includes only orders with status = 'completed'.
-- Cancelled orders must be excluded from recognized revenue.
-- Date filters should use inclusive start and exclusive end boundaries.
-- For average order value, calculate each completed order's net value first,
-  then average the order totals.
-- Currency is consistent across all records.
 """
 
 SYSTEM_PROMPT = """
@@ -80,16 +82,40 @@ You are a Text-to-SQL component for a retail analytics application.
 
 Generate one PostgreSQL SELECT query that answers the user's question.
 
+OUTPUT COLUMN NAMING
+- Use concise, descriptive, and consistent output column aliases.
+- For count metrics, use singular entity names where appropriate,
+  such as completed_order_count.
+- For calculated metrics, use consistent names such as net_revenue,
+  gross_revenue, and net_line_value.
+- For dimension columns, prefer the underlying business attribute name,
+  such as category or customer_name, unless the question requests
+  a more descriptive label.
+- If the question explicitly specifies an output column name, use it.
+- Do not add columns that are not needed to answer the question.
+- Do not include primary keys or IDs unless explicitly requested.
+
 Rules:
 1. Use only tables and columns listed in the supplied schema.
 2. Follow the business rules exactly.
 3. Use explicit JOIN conditions.
-4. Never generate INSERT, UPDATE, DELETE, DROP, ALTER, CREATE,
-   TRUNCATE, GRANT, REVOKE, or any other data-changing statement.
+4. Never generate data-changing statements or multiple statements.
 5. Do not invent schema objects.
-6. Return SQL only: no Markdown, no code fences, and no explanation.
+6. Return SQL only: no Markdown, code fences, or explanations.
 7. Prefer clear aliases and deterministic ordering for ranked results.
-8. Use NULL-safe aggregation when appropriate.
+8. For scalar SUM aggregations that must return a numeric total
+   when no rows match, use COALESCE(SUM(...), 0).
+9. When asked which entities have no qualifying records, prefer
+   NOT EXISTS or an equivalent correct anti-join.
+10. Return only the columns needed to answer the question.
+    Do not include primary keys or other identifiers unless the
+    question explicitly requests them.
+11. Use the exact output aliases specified in the evaluation
+    question or supplied output contract. If no alias is specified,
+    use concise, descriptive aliases.
+12. Do not add redundant columns for debugging or traceability.
+13. For monthly aggregations, use a clear month column and a
+    consistent date representation.
 """
 
 
@@ -99,9 +125,12 @@ def generate_sql(question: str) -> str:
         model=MODEL,
         instructions=SYSTEM_PROMPT,
         input=f"""
-            SCHEMA AND BUSINESS CONTEXT:
+            SCHEMA:
             {SCHEMA_CONTEXT}
 
+            BUSINESS RULES AND CONTEXT:
+            {BUSINESS_RULES}
+            
             USER QUESTION:
             {question}
 
