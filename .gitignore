@@ -11,5 +11,6 @@ wheels/
 .venv
 
 .env
-
-postgres_data/
+logs/
+.postgres_data/
+docker-compose.yml
