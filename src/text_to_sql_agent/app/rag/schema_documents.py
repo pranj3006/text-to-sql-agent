@@ -44,8 +44,13 @@ SCHEMA_DOCUMENTS: tuple[SchemaDocument, ...] = (
             "Columns: order_id (primary key), "
             "customer_id (foreign key to customers.customer_id), "
             "order_date, status. "
+            "Stores customer orders, order dates, and order statuses. "
             "Allowed order statuses are completed and cancelled. "
-            "Each order belongs to one customer."
+            "Each order belongs to one customer. "
+            "Use this table when analyzing order counts, monthly sales trends, "
+            "recognized revenue, completed orders, and cancelled orders. "
+            "Recognized revenue calculations must filter orders.status "
+            "to completed."
         ),
     ),
     SchemaDocument(
@@ -80,8 +85,14 @@ SCHEMA_DOCUMENTS: tuple[SchemaDocument, ...] = (
         content=(
             "Join orders to order_items using "
             "orders.order_id = order_items.order_id. "
-            "Use this relationship to filter order lines by "
-            "order date or order status."
+            "Each order can contain multiple order items. "
+            "Use this relationship to calculate sales, gross revenue, "
+            "net revenue, and recognized revenue from order items. "
+            "Use orders.order_date for date filtering and monthly trends. "
+            "Use orders.status to filter completed or cancelled orders. "
+            "Recognized revenue requires completed orders only. "
+            "This relationship is required when calculating revenue "
+            "from order items with order-level filters."
         ),
     ),
     SchemaDocument(
@@ -120,13 +131,16 @@ SCHEMA_DOCUMENTS: tuple[SchemaDocument, ...] = (
         category="business_rule",
         title="Recognized revenue",
         content=(
-            "Recognized revenue includes net line value "
-            "from completed orders only. "
-            "Cancelled orders must be excluded from "
-            "recognized revenue calculations. "
-            "For cancelled-order reconciliation, calculate "
-            "net line value using the same discount formula, "
-            "but filter for cancelled orders."
+            "Recognized revenue includes revenue from completed orders only. "
+            "Cancelled orders must be excluded from recognized revenue calculations. "
+            "When comparing gross and net revenue on a recognized-revenue basis, "
+            "calculate both gross line value and net line value using completed "
+            "orders only. "
+            "Gross line value is quantity * unit_price. "
+            "Net line value is quantity * unit_price * (1 - discount_pct). "
+            "For cancelled-order reconciliation, calculate gross and net line "
+            "values separately using the same formulas, but filter for cancelled "
+            "orders."
         ),
     ),
     SchemaDocument(
@@ -138,7 +152,10 @@ SCHEMA_DOCUMENTS: tuple[SchemaDocument, ...] = (
             "and an exclusive end date. "
             "For example, a calendar year from 2026 uses "
             "order_date >= DATE '2026-01-01' and "
-            "order_date < DATE '2027-01-01'."
+            "order_date < DATE '2027-01-01'. "
+            "Use orders.order_date for monthly revenue trends, "
+            "monthly sales reports, and time-series analysis. "
+            "For monthly aggregation, group orders by calendar month."
         ),
     ),
 )

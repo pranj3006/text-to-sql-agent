@@ -6,7 +6,7 @@ from pathlib import Path
 import psycopg
 from psycopg.rows import dict_row
 
-from text_to_sql_agent.evaluation.golden_cases import GOLDEN_CASES
+from text_to_sql_agent.evaluation.query_generator.golden_cases import GOLDEN_CASES
 from dotenv import load_dotenv
 
 load_dotenv()
