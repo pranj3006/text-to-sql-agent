@@ -1,0 +1,104 @@
+[
+  {
+    "id": "Q02",
+    "question": "Which 5 products generated the highest net revenue?",
+    "columns": [
+      "product_name",
+      "net_revenue"
+    ],
+    "rows": [
+      {
+        "product_name": "Coffee",
+        "net_revenue": "16980.000000"
+      },
+      {
+        "product_name": "Tea",
+        "net_revenue": "9075.000000"
+      },
+      {
+        "product_name": "Shampoo",
+        "net_revenue": "6030.000000"
+      },
+      {
+        "product_name": "Biscuits",
+        "net_revenue": "4350.000000"
+      },
+      {
+        "product_name": "Soap",
+        "net_revenue": "3520.000000"
+      }
+    ]
+  },
+  {
+    "id": "Q03",
+    "question": "What is the net revenue by customer region?",
+    "columns": [
+      "region",
+      "net_revenue"
+    ],
+    "rows": [
+      {
+        "region": "East",
+        "net_revenue": "2720.000000"
+      },
+      {
+        "region": "North",
+        "net_revenue": "15840.000000"
+      },
+      {
+        "region": "South",
+        "net_revenue": "6980.000000"
+      },
+      {
+        "region": "West",
+        "net_revenue": "16735.000000"
+      }
+    ]
+  },
+  {
+    "id": "Q04",
+    "question": "How many completed orders were placed in Q2 2026?",
+    "columns": [
+      "completed_order_count"
+    ],
+    "rows": [
+      {
+        "completed_order_count": 3
+      }
+    ]
+  },
+  {
+    "id": "Q07",
+    "question": "What is the net revenue by product category?",
+    "columns": [
+      "category",
+      "net_revenue"
+    ],
+    "rows": [
+      {
+        "category": "Beverages",
+        "net_revenue": "26055.000000"
+      },
+      {
+        "category": "Personal Care",
+        "net_revenue": "9550.000000"
+      },
+      {
+        "category": "Snacks",
+        "net_revenue": "6670.000000"
+      }
+    ]
+  },
+  {
+    "id": "Q09",
+    "question": "What is the net line value associated with cancelled orders, for reconciliation purposes?",
+    "columns": [
+      "cancelled_order_line_value"
+    ],
+    "rows": [
+      {
+        "cancelled_order_line_value": "10000.000000"
+      }
+    ]
+  }
+]

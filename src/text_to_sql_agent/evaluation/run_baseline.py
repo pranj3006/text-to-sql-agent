@@ -7,8 +7,8 @@ from pathlib import Path
 
 from sqlalchemy import text
 
-from app.text_to_sql import engine, generate_sql, validate_sql
-from golden_cases import GOLDEN_CASES
+from text_to_sql_agent.app.text_to_sql import engine, generate_sql, validate_sql
+from text_to_sql_agent.evaluation.golden_cases import GOLDEN_CASES
 
 OUTPUT_FILE = Path(__file__).with_name("baseline_results.json")
 
