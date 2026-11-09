@@ -40,6 +40,14 @@ OPENAI_MODEL=<model-supported-by-your-account>
 
 The API and retrieval modules currently use an async `asyncpg` SQLAlchemy URL. The baseline generator uses a synchronous SQLAlchemy engine, while the reference runner uses `psycopg` directly; use the runner-specific URL forms in their commands below. The API also currently shares one `DATABASE_URL` between async and sync engines, so its `/query` path does not yet have a compatible single URL configuration.
 
+To make a live embedding request using `OPENAI_API_KEY` from the application settings:
+
+```sh
+uv run --no-sync python -m text_to_sql_agent.scripts.run_embeddings
+```
+
+This calls the configured embedding model and may incur OpenAI API usage charges.
+
 ## Set up PostgreSQL
 
 Start the database service:

@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     LOG_DIR: str = "/var/log/app"
     LOG_JSON: bool = True
 
+    EMBEDDING_MODEL: str = "text-embedding-3-small"
+    EMBEDDING_DIMENSIONS: str = "1536"
+
     # # --- MCP ---
     # MCP_FILESYSTEM_ROOT: str = "/data/mcp-fs"
 
