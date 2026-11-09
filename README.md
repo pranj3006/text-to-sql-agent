@@ -1,33 +1,186 @@
 # Agentic Text-to-SQL
 
-A Python prototype for translating retail analytics questions into SQL, validating and executing read-only queries against PostgreSQL, and comparing generated results with a small golden set.
+A Python prototype for translating retail analytics questions into SQL and evaluating the result against reference queries. It is not a production-ready Text-to-SQL service: database initialization, SQL execution configuration, and the experimental schema-retrieval path still have known gaps.
 
-## Current status
+See [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) for audited implementation status and [docs/ROADMAP.md](docs/ROADMAP.md) for phase goals.
 
-The repository is a work in progress, not a production-ready Text-to-SQL service. The baseline, SQL initialization scripts, evaluation runner, and an experimental PostgreSQL full-text schema retriever are present. Their end-to-end behavior has not been verified. See [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) for the audited status and next task.
+## Prerequisites
 
-## Repository map
+- Python 3.12
+- [`uv`](https://docs.astral.sh/uv/)
+- Docker with the Compose plugin, for PostgreSQL 17 with pgvector
+- An OpenAI API key for baseline query generation (the unit tests and reference-query evaluation do not call the model)
 
-- `src/text_to_sql_agent/app/` — FastAPI entry point, baseline pipeline, configuration, database access, and supporting scaffolding.
-- `src/text_to_sql_agent/db_scripts/` — retail schema and seed SQL.
-- `src/text_to_sql_agent/evaluation/` — golden cases and baseline/reference-result runners.
-- `src/text_to_sql_agent/tests/` — current unit tests.
-- `.database/init/` — Docker initialization script for the database and application user; it does not currently run the schema or seed scripts.
-- `docs/` — architecture, schema, roadmap, decisions, evaluation, and verified project status.
-- `.github/` — Copilot instructions and reusable prompts.
+## Install
 
-## Development checks
+From the repository root, install the locked project dependencies and package:
 
-Python 3.12 and `uv` are used by the current project configuration. Run the existing unit tests with:
+```sh
+uv sync --locked
+```
+
+Confirm the interpreter and package environment:
+
+```sh
+uv run python --version
+```
+
+Use `uv run ...` for the commands below so they execute in the project environment. `--no-sync` is optional when dependencies are already installed; it prevents `uv` from attempting to synchronize them.
+
+## Configure the local environment
+
+Create a root-level `.env` file (do not commit it) with local connection details:
+
+```dotenv
+DATABASE_URL=postgresql+asyncpg://<database-user>:<password>@localhost:5433/<database-name>
+OPENAI_API_KEY=<your-api-key>
+# Optional for baseline generation:
+OPENAI_MODEL=<model-supported-by-your-account>
+```
+
+The API and retrieval modules currently use an async `asyncpg` SQLAlchemy URL. The baseline generator uses a synchronous SQLAlchemy engine, while the reference runner uses `psycopg` directly; use the runner-specific URL forms in their commands below. The API also currently shares one `DATABASE_URL` between async and sync engines, so its `/query` path does not yet have a compatible single URL configuration.
+
+## Set up PostgreSQL
+
+Start the database service:
+
+```sh
+docker compose up -d postgres
+docker compose ps
+```
+
+On the first start, Compose's initialization script creates `app1_db` and `app1_user`, but it does **not** apply the retail schema or seed data. Apply the checked-in SQL once to a new/empty database as the local PostgreSQL administrator:
+
+```sh
+docker compose exec -T postgres psql -U postgres -d app1_db \
+  < src/text_to_sql_agent/db_scripts/001_schema.sql
+docker compose exec -T postgres psql -U postgres -d app1_db \
+  < src/text_to_sql_agent/db_scripts/002_seed.sql
+docker compose exec postgres psql -U postgres -d app1_db \
+  -c 'CREATE EXTENSION IF NOT EXISTS vector;'
+```
+
+The app database user does not automatically receive SELECT privileges on tables created by the administrator. Grant local query access:
+
+```sh
+docker compose exec postgres psql -U postgres -d app1_db \
+  -c 'GRANT USAGE ON SCHEMA public TO app1_user; GRANT SELECT ON ALL TABLES IN SCHEMA public TO app1_user;'
+```
+
+For the optional schema-retrieval experiment, create its table and grant the indexer access:
+
+```sh
+docker compose exec -T postgres psql -U postgres -d app1_db \
+  < src/text_to_sql_agent/db_scripts/003_schema_documents.sql
+docker compose exec postgres psql -U postgres -d app1_db \
+  -c 'GRANT SELECT, INSERT, UPDATE, DELETE ON schema_documents TO app1_user;'
+```
+
+These are local-development instructions, not a production security setup. The current Compose initializer grants broad database privileges, and the project has not yet established a dedicated read-only execution role. Seed SQL is not idempotent; do not re-run it against a database that already contains the seed rows.
+
+## Run the API
+
+With the root `.env` configured and the database available:
+
+```sh
+uv run --no-sync uvicorn text_to_sql_agent.app.main:app --reload
+```
+
+In another terminal, check the health endpoint:
+
+```sh
+curl http://127.0.0.1:8000/health
+```
+
+The endpoint is `POST /query` with a JSON body such as:
+
+```sh
+curl -X POST http://127.0.0.1:8000/query \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"What is net revenue by product category?"}'
+```
+
+The API startup and `/query` flow have not been verified end to end. In particular, `/query` currently uses a synchronous engine configured from the same `DATABASE_URL` as the async app engine; fix/separate those settings before expecting the query request to work.
+
+## Run tests
+
+Run isolated tests that do not need PostgreSQL or API credentials:
+
+```sh
+uv run --no-sync pytest -q \
+  src/text_to_sql_agent/tests/test_metrics.py \
+  src/text_to_sql_agent/tests/test_schema_documents.py \
+  src/text_to_sql_agent/tests/test_index_schema.py
+```
+
+The complete suite includes a live schema-retrieval test. It imports application settings and connects to PostgreSQL, so provide `DATABASE_URL` and `OPENAI_API_KEY`, ensure the schema-document table exists, and grant the configured user access before running:
 
 ```sh
 uv run --no-sync pytest -q
 ```
 
-The last audited run passed 4 tests. This is not an end-to-end check: no PostgreSQL-backed query run or model-backed evaluation has been verified. The Docker Compose database initialization and the SQL files under `src/text_to_sql_agent/db_scripts/` are not yet wired together as a reproducible fresh-database workflow.
+The full suite currently fails in that integration test with `permission denied for table schema_documents` in the audited local database. The isolated test command is not a substitute for database integration coverage.
 
-## Architecture and roadmap
+## Run evaluations
 
-The intended development order is database/ground truth, baseline Text-to-SQL, evaluation, then retrieval and orchestration only when justified by measured results. Current code also contains early infrastructure scaffolding; its presence does not mean a roadmap phase is complete. See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+### 1. Refresh reference results
+
+After schema and seed setup, execute the independent reference SQL and update `golden_results.json`:
+
+```sh
+DATABASE_URL='postgresql://<database-user>:<password>@localhost:5433/<database-name>' \
+  uv run --no-sync python -m text_to_sql_agent.evaluation.query_generator.run_golden
+```
+
+Use a regular `postgresql://` DSN here because this runner calls `psycopg.connect` directly. Review the saved results when ground-truth SQL or seed data changes. The command overwrites the existing snapshot.
+
+### 2. Measure the static-context baseline
+
+After confirming reference results and configuring an OpenAI key, run the model-backed query evaluation:
+
+```sh
+DATABASE_URL='postgresql+psycopg://<database-user>:<password>@localhost:5433/<database-name>' \
+  uv run --no-sync python -m text_to_sql_agent.evaluation.query_generator.run_baseline
+```
+
+This calls the model and executes generated and reference SQL against PostgreSQL; it may incur model charges and overwrites `baseline_results.json`. It measures the current static-schema baseline, not a RAG pipeline. The active golden-case list is currently only five cases due to a duplicate assignment, and the comparator has known ordering/tolerance limitations; treat the output as experimental until those are corrected.
+
+### 3. Measure schema retrieval (experimental RAG component)
+
+Create and index the schema documents first:
+
+```sh
+DATABASE_URL='postgresql+asyncpg://<database-user>:<password>@localhost:5433/<database-name>' \
+  uv run --no-sync python -m text_to_sql_agent.scripts.index_schema
+```
+
+Then measure retrieval relevance:
+
+```sh
+DATABASE_URL='postgresql+asyncpg://<database-user>:<password>@localhost:5433/<database-name>' \
+  uv run --no-sync python -m text_to_sql_agent.evaluation.rag.evaluate_retrieval
+```
+
+This reports retrieval metrics such as Recall@k, Precision@k, MRR, and nDCG. It evaluates which schema documents are retrieved, **not** whether generated SQL or final answers improve.
+
+### Which evaluation should I run, and when?
+
+| Change or milestone | Run | Why |
+|---|---|---|
+| Changes to deterministic metric/retrieval helpers or schema-document construction | Isolated pytest command (and the relevant focused tests) | Fast feedback without requiring the database or model |
+| Schema, seed data, or reference SQL changes | `run_golden` | Re-check the independently authored expected results against the database |
+| Prompt, model, or static schema-context changes | `run_baseline` | Measure query/result behavior against the same reference set |
+| Schema documents, search query, ranking, or retrieval changes | `evaluate_retrieval` | Measure retrieval relevance independently of SQL generation |
+| A future integrated RAG-to-SQL implementation | Run retrieval evaluation and the **same end-to-end golden set** for both baseline and RAG | Compare retrieval quality and downstream result accuracy on identical data/questions; do not claim RAG improvement from retrieval metrics alone |
+
+The repository does not yet integrate retrieval into the SQL-generation flow, so there is currently no valid end-to-end RAG-versus-baseline evaluation command. Save the baseline report before changing the approach, keep the dataset and cases fixed, and compare dimensions separately (execution, result accuracy, latency, and model usage).
+
+## Project layout
+
+- `src/text_to_sql_agent/app/` — FastAPI entry point, prototype baseline, configuration, database access, and scaffolding.
+- `src/text_to_sql_agent/db_scripts/` — retail schema, seed data, and schema-document SQL.
+- `src/text_to_sql_agent/evaluation/` — reference/baseline runners and experimental retrieval metrics.
+- `src/text_to_sql_agent/tests/` — unit and database-dependent tests.
+- `docs/` — architecture, database semantics, roadmap, evaluation strategy, decisions, and audited state.
 
 Do not commit credentials or copy values from local environment files into documentation or source control.
