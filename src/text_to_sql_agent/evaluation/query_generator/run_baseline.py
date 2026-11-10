@@ -7,7 +7,13 @@ from pathlib import Path
 
 from sqlalchemy import text
 
-from text_to_sql_agent.app.text_to_sql import engine, generate_sql, validate_sql
+from text_to_sql_agent.app.text_to_sql import (
+    dispose_query_database_engine,
+    generate_sql,
+    get_query_database_engine,
+    get_schema_context,
+    validate_sql,
+)
 from text_to_sql_agent.evaluation.query_generator.golden_cases import GOLDEN_CASES
 
 OUTPUT_FILE = Path(__file__).with_name("baseline_results.json")
@@ -99,19 +105,20 @@ def compare_results(expected_rows, actual_rows,expected_columns=None):
     }
 
 
-def fetch_rows(sql):
+def fetch_rows(sql, engine):
     """Execute a query in a read-only transaction with a timeout."""
     with engine.connect() as connection:
         with connection.begin():
-            connection.execute(text("SET TRANSACTION READ ONLY"))
-            connection.execute(
-                text("SET LOCAL statement_timeout = '5000ms'")
-            )
+            if engine.dialect.name == "postgresql":
+                connection.execute(text("SET TRANSACTION READ ONLY"))
+                connection.execute(text("SET LOCAL statement_timeout = '5000ms'"))
             result = connection.execute(text(sql))
             return [dict(row) for row in result.mappings()]
 
 
 def main():
+    engine = get_query_database_engine()
+    schema_context = get_schema_context(engine)
     report = []
 
     for case in GOLDEN_CASES:
@@ -126,11 +133,17 @@ def main():
         }
 
         try:
-            generated_sql = generate_sql(case["question"])
-            safe_sql = validate_sql(generated_sql)
+            generated_sql = generate_sql(case["question"], engine=engine)
+            safe_sql = validate_sql(
+                generated_sql,
+                dialect=schema_context.dialect,
+                allowed_tables=schema_context.tables,
+                schema=schema_context.schema,
+                catalog=engine.url.database,
+            )
 
-            actual_rows = fetch_rows(safe_sql)
-            expected_rows = fetch_rows(case["reference_sql"])
+            actual_rows = fetch_rows(safe_sql, engine)
+            expected_rows = fetch_rows(case["reference_sql"], engine)
 
             # actual_signatures = [
             #     row_signature(row) for row in actual_rows
@@ -211,6 +224,7 @@ def main():
     print(f"Errors:   {errors}")
     print(f"Accuracy: {summary['accuracy']:.1%}")
     print(f"Report:   {OUTPUT_FILE}")
+    dispose_query_database_engine()
 
 
 if __name__ == "__main__":

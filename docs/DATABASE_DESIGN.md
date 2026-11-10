@@ -4,6 +4,8 @@
 
 ## Source of truth
 
+- `DATABASE_URL` configures the application's persistence database; it may contain `schema_documents` and other application-owned data.
+- `TEXT_TO_SQL_DATABASE_URL` independently configures the synchronous analytics/query target. The target may be hosted outside the FastAPI deployment and can use a SQLAlchemy-supported synchronous dialect/driver. The target schema is reflected at runtime; set `TEXT_TO_SQL_SCHEMA` to select a non-default schema.
 - `src/text_to_sql_agent/db_scripts/001_schema.sql` defines the current retail schema.
 - `src/text_to_sql_agent/db_scripts/002_seed.sql` defines deterministic sample rows.
 - `src/text_to_sql_agent/app/db/models.py` maps `schema_documents` as a SQLAlchemy model.
@@ -36,6 +38,7 @@
 
 ## Setup and design gaps
 
+- Configure a dedicated read-only principal for every external Text-to-SQL target. PostgreSQL execution has an additional read-only transaction and timeout; other target databases require server/driver-level execution limits and permissions.
 - Make Compose initialization apply the schema and seed files in a repeatable, ordered way.
 - Decide and implement a least-privilege read-only query role; the current init script grants the application user all database privileges.
 - Add a fresh-database smoke test and verify seed row counts and foreign-key/check constraints.

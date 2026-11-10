@@ -32,14 +32,22 @@ Use `uv run ...` for the commands below so they execute in the project environme
 Create a root-level `.env` file (do not commit it) with local connection details:
 
 ```dotenv
-DATABASE_URL=postgresql+asyncpg://<database-user>:<password>@localhost:5433/<database-name>
+DATABASE_URL=postgresql+asyncpg://<database-user>:<password>@localhost:5433/<application-database>
+# Independent synchronous connection used only to inspect and query analytics data:
+TEXT_TO_SQL_DATABASE_URL=postgresql+psycopg://<read-only-user>:<password>@<host>:5432/<analytics-database>
+# Optional; defaults to the target database's default schema:
+TEXT_TO_SQL_SCHEMA=public
 # Required only for OpenAI-backed operations:
 OPENAI_API_KEY=<your-api-key>
 # Optional for baseline generation:
 OPENAI_MODEL=<model-supported-by-your-account>
 ```
 
-The API and retrieval modules currently use an async `asyncpg` SQLAlchemy URL. The baseline generator uses a synchronous SQLAlchemy engine, while the reference runner uses `psycopg` directly; use the runner-specific URL forms in their commands below. The API also currently shares one `DATABASE_URL` between async and sync engines, so its `/query` path does not yet have a compatible single URL configuration.
+Both database URLs are required. `DATABASE_URL` belongs exclusively to the FastAPI application's own persistence and remains an async URL. `TEXT_TO_SQL_DATABASE_URL` belongs exclusively to the Text-to-SQL query engine and must use a synchronous SQLAlchemy driver. It may point to a different database on a different server. The Text-to-SQL path reflects tables and views in the target schema and prompts the model using that database's SQL dialect.
+
+The target URL can use any SQLAlchemy dialect supported by SQLGlot when its synchronous DBAPI driver is installed. For example, SQL Server can use a URL such as `mssql+pyodbc://<user>:<password>@<host>/<database>?driver=ODBC+Driver+18+for+SQL+Server`; install the matching Python DBAPI package and system database driver separately. The application database and query database each have independent SQLAlchemy engines and connection pools.
+
+Use a dedicated read-only account for `TEXT_TO_SQL_DATABASE_URL`. The application additionally enforces a single read-only query, restricts referenced tables/views to the reflected schema, and caps returned rows. PostgreSQL queries also use a read-only transaction and statement timeout; other database servers must enforce read-only access and appropriate execution limits through their database roles and driver/server configuration.
 
 To make a live embedding request using `OPENAI_API_KEY` from the application settings:
 
@@ -111,7 +119,7 @@ curl -X POST http://127.0.0.1:8000/query \
   -d '{"question":"What is net revenue by product category?"}'
 ```
 
-The API startup and `/query` flow have not been verified end to end. In particular, `/query` currently uses a synchronous engine configured from the same `DATABASE_URL` as the async app engine; fix/separate those settings before expecting the query request to work.
+The API startup and `/query` flow have not been verified end to end. Configure both `DATABASE_URL` for application persistence and `TEXT_TO_SQL_DATABASE_URL` for the analytics target before running the query endpoint.
 
 ## Run tests
 
@@ -124,7 +132,7 @@ uv run --no-sync pytest -q \
   src/text_to_sql_agent/tests/test_index_schema.py
 ```
 
-The complete suite includes a live schema-retrieval test. It imports application settings and connects to PostgreSQL, so provide `DATABASE_URL`, ensure the schema-document table exists, and grant the configured user access before running. `OPENAI_API_KEY` is needed only for tests or operations that create an OpenAI client:
+The complete suite includes a live schema-retrieval test. It imports application settings and connects to PostgreSQL, so provide both `DATABASE_URL` and `TEXT_TO_SQL_DATABASE_URL`, ensure the schema-document table exists, and grant the configured user access before running. `OPENAI_API_KEY` is needed only for tests or operations that create an OpenAI client:
 
 ```sh
 uv run --no-sync pytest -q
@@ -145,16 +153,16 @@ DATABASE_URL='postgresql://<database-user>:<password>@localhost:5433/<database-n
 
 Use a regular `postgresql://` DSN here because this runner calls `psycopg.connect` directly. Review the saved results when ground-truth SQL or seed data changes. The command overwrites the existing snapshot.
 
-### 2. Measure the static-context baseline
+### 2. Measure the dynamic-schema baseline
 
 After confirming reference results and configuring an OpenAI key, run the model-backed query evaluation:
 
 ```sh
-DATABASE_URL='postgresql+psycopg://<database-user>:<password>@localhost:5433/<database-name>' \
+TEXT_TO_SQL_DATABASE_URL='postgresql+psycopg://<read-only-user>:<password>@localhost:5433/<database-name>' \
   uv run --no-sync python -m text_to_sql_agent.evaluation.query_generator.run_baseline
 ```
 
-This calls the model and executes generated and reference SQL against PostgreSQL; it may incur model charges and overwrites `baseline_results.json`. It measures the current static-schema baseline, not a RAG pipeline. The active golden-case list is currently only five cases due to a duplicate assignment, and the comparator has known ordering/tolerance limitations; treat the output as experimental until those are corrected.
+This calls the model and executes generated and reference SQL against the configured query database; the checked-in reference queries currently target the synthetic PostgreSQL retail schema. It may incur model charges and overwrites `baseline_results.json`. It measures the dynamic-schema baseline, not a RAG pipeline. The active golden-case list is currently only five cases due to a duplicate assignment, and the comparator has known ordering/tolerance limitations; treat the output as experimental until those are corrected.
 
 ### 3. Measure schema retrieval (experimental RAG component)
 
@@ -180,7 +188,7 @@ This reports retrieval metrics such as Recall@k, Precision@k, MRR, and nDCG. It 
 |---|---|---|
 | Changes to deterministic metric/retrieval helpers or schema-document construction | Isolated pytest command (and the relevant focused tests) | Fast feedback without requiring the database or model |
 | Schema, seed data, or reference SQL changes | `run_golden` | Re-check the independently authored expected results against the database |
-| Prompt, model, or static schema-context changes | `run_baseline` | Measure query/result behavior against the same reference set |
+| Prompt, model, or reflected-schema changes | `run_baseline` | Measure query/result behavior against the same reference set |
 | Schema documents, search query, ranking, or retrieval changes | `evaluate_retrieval` | Measure retrieval relevance independently of SQL generation |
 | A future integrated RAG-to-SQL implementation | Run retrieval evaluation and the **same end-to-end golden set** for both baseline and RAG | Compare retrieval quality and downstream result accuracy on identical data/questions; do not claim RAG improvement from retrieval metrics alone |
 

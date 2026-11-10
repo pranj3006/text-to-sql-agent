@@ -49,3 +49,11 @@ Record material decisions here. Do not rewrite history; supersede an earlier dec
 - **Decision:** Add a SQLAlchemy model and an async PostgreSQL Alembic environment for `schema_documents`. Keep configuration in the existing `app/core/config.py`, use the shared `TimestampMixin`, keep the string `document_id` primary key, retain the existing retail schema and seed SQL, and limit Alembic autogeneration to `schema_documents` so it does not treat the non-modeled retail tables as removals.
 - **Alternatives considered:** Continue managing the table only with its raw SQL script; move all retail objects into ORM models and migrations in the same change.
 - **Consequences:** New schema-document setup uses `alembic upgrade head`; existing databases where the table was created by the legacy SQL script need their Alembic version state reconciled before using the migration. OpenAI credentials are optional in application settings and are checked when creating an OpenAI client. This does not yet make fresh database initialization fully reproducible.
+
+## ADR-0007 — Separate the Text-to-SQL target database from application persistence
+- **Status:** Accepted
+- **Date:** 2026-11-10
+- **Context:** The FastAPI application uses an async database engine for its own persistence, while analytics queries may target a separate database or server and require a synchronous SQLAlchemy driver.
+- **Decision:** Keep `DATABASE_URL` exclusively for application persistence and add `TEXT_TO_SQL_DATABASE_URL` for the Text-to-SQL target. Reflect the target's configured/default schema at runtime and use its SQL dialect for generation and validation. Support synchronous SQLAlchemy dialects understood by SQLGlot when their DBAPI drivers are installed.
+- **Alternatives considered:** Reuse `DATABASE_URL`; add a dedicated implementation and package for every database product; keep the retail schema hard-coded in the prompt.
+- **Consequences:** The target connection is independently configured and pooled. A suitable synchronous DBAPI driver must be installed for each deployment target. All targets must use a dedicated read-only database principal; database-specific execution limits beyond PostgreSQL and SQLite still require driver/server configuration. Runtime reflection currently selects one schema and exposes its tables and views to the workflow.

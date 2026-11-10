@@ -7,7 +7,7 @@ Progress is updated only when supported by repository and test evidence. Statuse
 | Phase | Status | Evidence-based summary |
 |---|---|---|
 | 01 — Database and ground truth | PARTIAL / NOT VERIFIED | SQL schema and seed files exist, but Compose initialization does not execute them. No Alembic environment, fresh-database test, or verified database run was found. |
-| 02 — Baseline Text-to-SQL | PROTOTYPE / NOT END-TO-END TESTED | FastAPI route, static schema/business context, model generation, SQLGlot validation, and read-only transaction code exist. The query path was not run. |
+| 02 — Baseline Text-to-SQL | PROTOTYPE / NOT END-TO-END TESTED | FastAPI route, reflected target schema, dialect-aware generation, SQLGlot validation, and a separate query-database connection exist. The query path was not run end to end. |
 | 03 — Evaluation harness | PARTIAL / NOT RUN | Runners and golden data exist. The imported case list is only five cases due to a second assignment overriding the earlier list. No fresh baseline report was produced. |
 | 04 — Schema RAG | EXPERIMENTAL / INCOMPLETE | Curated documents and PostgreSQL full-text retrieval exist. No embedding/vector retrieval or retrieval evaluation was found; package imports and async indexing are inconsistent. |
 | 05 — MCP integration | NOT STARTED | No MCP integration found. |

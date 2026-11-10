@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 20
     DB_ECHO: bool = False
 
+    # --- External database queried by the Text-to-SQL workflow ---
+    TEXT_TO_SQL_DATABASE_URL: str
+    TEXT_TO_SQL_SCHEMA: str | None = None
+
     # # --- Redis ---
     # REDIS_HOST: str = "redis"
     # REDIS_PORT: int = 6379
@@ -47,6 +51,7 @@ class Settings(BaseSettings):
     # --- Azure OpenAI ---
     # AZURE_OPENAI_ENDPOINT: str
     OPENAI_API_KEY: str | None = None
+    OPENAI_MODEL: str = "gpt-5.5"
     # AZURE_OPENAI_API_VERSION: str = "2024-06-01"
     # AZURE_OPENAI_CHAT_DEPLOYMENT: str
     # AZURE_OPENAI_EMBEDDING_DEPLOYMENT: str

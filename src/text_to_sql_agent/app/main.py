@@ -3,7 +3,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
-from text_to_sql_agent.app.text_to_sql import answer_question
+from text_to_sql_agent.app.text_to_sql import (
+    answer_question,
+    dispose_query_database_engine,
+)
 from text_to_sql_agent.app.core.config import settings
 from text_to_sql_agent.app.core.exceptions import register_exception_handlers
 from text_to_sql_agent.app.core.logging import configure_logging, get_logger
@@ -21,10 +24,13 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("app_startup", extra={"env": settings.APP_ENV})
-    await ensure_pgvector_extension(engine)
-    yield
-    logger.info("app_shutdown")
-    await engine.dispose()
+    try:
+        await ensure_pgvector_extension(engine)
+        yield
+    finally:
+        logger.info("app_shutdown")
+        dispose_query_database_engine()
+        await engine.dispose()
 
 app = FastAPI(
     title=settings.APP_NAME,

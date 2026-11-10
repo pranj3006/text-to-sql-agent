@@ -74,14 +74,14 @@ Treat user questions, retrieved schema descriptions/business text, database cont
 - Clear failure modes
 - Observable execution without leaking sensitive data
 
-## 6. Observed implementation (2026-11-06)
+## 6. Observed implementation (2026-11-10)
 
 - `app/main.py` defines a FastAPI `/health` endpoint and synchronous `/query` handler.
-- `app/text_to_sql.py` contains a separate synchronous SQLAlchemy engine, static schema/business context, OpenAI SQL generation, SQLGlot parsing, a SELECT/set-operation gate, a blocked-function list, a default row cap, a read-only transaction, and a statement timeout.
-- The current validator does not enforce an allowlist of schemas/tables/columns. The checked-in Docker initialization creates a regular database user with database-wide privileges; it does not define a dedicated read-only role.
+- `app/text_to_sql.py` uses a dedicated synchronous SQLAlchemy engine configured by `TEXT_TO_SQL_DATABASE_URL`; it reflects the target database's default or configured schema, prompts using its SQL dialect, restricts referenced tables/views to the reflected schema, and applies a row cap. PostgreSQL execution additionally uses a read-only transaction and statement timeout. The FastAPI application's async persistence engine remains configured by `DATABASE_URL`.
+- The validator restricts referenced tables/views to the reflected target schema, but does not individually allowlist columns. The checked-in Docker initialization creates a regular database user with database-wide privileges; it does not define a dedicated read-only role. Read-only transactions and statement timeouts are currently explicit only for PostgreSQL, with SQLite query-only mode used in tests.
 - `app/rag/` contains curated schema documents, a PostgreSQL `tsvector` schema, and full-text retrieval. It does not contain embedding generation or vector retrieval.
 - Several supporting modules still use imports from the former `app.*` package, while the repository is now under `text_to_sql_agent.*`. The schema-indexing script also calls an async indexer without awaiting it.
-- The app scaffold uses an async engine and centralized settings, while the baseline query path independently reads environment variables and creates a sync engine. These paths have not been integrated or exercised end to end.
+- The app scaffold uses an async engine for application persistence and centralized settings. Text-to-SQL uses a separate, lazily created synchronous engine; neither URL falls back to the other. These paths have not been exercised end to end.
 - Auth/RBAC, Celery, cache, and telemetry modules are scaffolding; their production behavior is not established by the current tests.
 - No MCP or LangGraph workflow is present.
 
