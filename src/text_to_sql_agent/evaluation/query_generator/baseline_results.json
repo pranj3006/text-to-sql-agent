@@ -1,26 +1,29 @@
 {
   "total": 5,
   "passed": 3,
-  "failed": 2,
+  "failed": 1,
   "errors": 0,
   "accuracy": 0.6,
   "results": [
     {
       "id": "Q02",
       "question": "Which 5 products generated the highest net revenue?",
-      "status": "PASS",
+      "status": "PASS_WITH_SCHEMA_MISMATCH",
       "expected_columns": [
         "product_name",
         "net_revenue"
       ],
       "result_match": true,
-      "output_schema_match": true,
+      "output_schema_match": false,
       "actual_columns": [
+        "product_id",
         "product_name",
         "net_revenue"
       ],
       "missing_columns": [],
-      "extra_columns": [],
+      "extra_columns": [
+        "product_id"
+      ],
       "expected_rows": [
         {
           "product_name": "Coffee",
@@ -45,49 +48,50 @@
       ],
       "actual_rows": [
         {
+          "product_id": 1,
           "product_name": "Coffee",
           "net_revenue": "16980.000000"
         },
         {
+          "product_id": 2,
           "product_name": "Tea",
           "net_revenue": "9075.000000"
         },
         {
+          "product_id": 5,
           "product_name": "Shampoo",
           "net_revenue": "6030.000000"
         },
         {
+          "product_id": 3,
           "product_name": "Biscuits",
           "net_revenue": "4350.000000"
         },
         {
+          "product_id": 6,
           "product_name": "Soap",
           "net_revenue": "3520.000000"
         }
       ],
-      "generated_sql": "SELECT p.product_name, COALESCE(SUM(oi.quantity * oi.unit_price * (1 - oi.discount_pct)), 0) AS net_revenue FROM products AS p JOIN order_items AS oi ON p.product_id = oi.product_id JOIN orders AS o ON oi.order_id = o.order_id WHERE o.status = 'completed' GROUP BY p.product_name ORDER BY net_revenue DESC LIMIT 5",
-      "latency_seconds": 6.15
+      "generated_sql": "SELECT p.product_id, p.product_name, COALESCE(SUM(oi.quantity * oi.unit_price * (1 - oi.discount_pct)), 0) AS net_revenue FROM \"public\".order_items AS oi JOIN \"public\".orders AS o ON oi.order_id = o.order_id JOIN \"public\".products AS p ON oi.product_id = p.product_id WHERE o.status <> 'cancelled' GROUP BY p.product_id, p.product_name ORDER BY net_revenue DESC LIMIT 5",
+      "latency_seconds": 4.419
     },
     {
       "id": "Q03",
       "question": "What is the net revenue by customer region?",
-      "status": "FAIL",
+      "status": "PASS",
       "expected_columns": [
         "region",
         "net_revenue"
       ],
-      "result_match": false,
-      "output_schema_match": false,
+      "result_match": true,
+      "output_schema_match": true,
       "actual_columns": [
-        "customer_region",
+        "region",
         "net_revenue"
       ],
-      "missing_columns": [
-        "region"
-      ],
-      "extra_columns": [
-        "customer_region"
-      ],
+      "missing_columns": [],
+      "extra_columns": [],
       "expected_rows": [
         {
           "region": "East",
@@ -108,24 +112,24 @@
       ],
       "actual_rows": [
         {
-          "customer_region": "East",
+          "region": "East",
           "net_revenue": "2720.000000"
         },
         {
-          "customer_region": "North",
+          "region": "North",
           "net_revenue": "15840.000000"
         },
         {
-          "customer_region": "South",
+          "region": "South",
           "net_revenue": "6980.000000"
         },
         {
-          "customer_region": "West",
+          "region": "West",
           "net_revenue": "16735.000000"
         }
       ],
-      "generated_sql": "SELECT c.region AS customer_region, COALESCE(SUM(oi.quantity * oi.unit_price * (1 - oi.discount_pct)), 0) AS net_revenue FROM customers AS c JOIN orders AS o ON c.customer_id = o.customer_id JOIN order_items AS oi ON o.order_id = oi.order_id WHERE o.status = 'completed' GROUP BY c.region ORDER BY c.region LIMIT 100",
-      "latency_seconds": 3.045
+      "generated_sql": "SELECT c.region AS region, COALESCE(SUM(oi.quantity * oi.unit_price * (1 - oi.discount_pct)), 0) AS net_revenue FROM \"public\".customers AS c JOIN \"public\".orders AS o ON c.customer_id = o.customer_id JOIN \"public\".order_items AS oi ON o.order_id = oi.order_id WHERE o.status = 'completed' GROUP BY c.region LIMIT 100",
+      "latency_seconds": 2.195
     },
     {
       "id": "Q04",
@@ -151,8 +155,8 @@
           "completed_order_count": 3
         }
       ],
-      "generated_sql": "SELECT COUNT(DISTINCT orders.order_id) AS completed_order_count FROM orders WHERE status = 'completed' AND order_date >= '2026-04-01' AND order_date < '2026-07-01' LIMIT 100",
-      "latency_seconds": 2.19
+      "generated_sql": "SELECT COUNT(DISTINCT o.order_id) AS completed_order_count FROM \"public\".orders AS o WHERE o.status = 'completed' AND o.order_date >= '2026-04-01' AND o.order_date < '2026-07-01' LIMIT 100",
+      "latency_seconds": 1.98
     },
     {
       "id": "Q07",
@@ -198,8 +202,8 @@
           "net_revenue": "6670.000000"
         }
       ],
-      "generated_sql": "SELECT p.category AS category, COALESCE(SUM(oi.quantity * oi.unit_price * (1 - oi.discount_pct)), 0) AS net_revenue FROM products AS p JOIN order_items AS oi ON p.product_id = oi.product_id JOIN orders AS o ON oi.order_id = o.order_id WHERE o.status = 'completed' GROUP BY p.category ORDER BY category LIMIT 100",
-      "latency_seconds": 2.639
+      "generated_sql": "SELECT p.category AS category, COALESCE(SUM(oi.quantity * oi.unit_price * (1 - oi.discount_pct)), 0) AS net_revenue FROM \"public\".order_items AS oi JOIN \"public\".orders AS o ON oi.order_id = o.order_id JOIN \"public\".products AS p ON oi.product_id = p.product_id WHERE o.status = 'completed' GROUP BY p.category ORDER BY p.category LIMIT 100",
+      "latency_seconds": 2.647
     },
     {
       "id": "Q09",
@@ -226,11 +230,11 @@
       ],
       "actual_rows": [
         {
-          "net_line_value": "10000.000000"
+          "net_line_value": "0"
         }
       ],
-      "generated_sql": "SELECT COALESCE(SUM(quantity * unit_price * (1 - discount_pct)), 0) AS net_line_value FROM order_items JOIN orders ON order_items.order_id = orders.order_id WHERE orders.status = 'cancelled' LIMIT 100",
-      "latency_seconds": 1.833
+      "generated_sql": "SELECT COALESCE(SUM(quantity * unit_price * (1 - discount_pct)), 0) AS net_line_value FROM \"public\".order_items JOIN \"public\".orders ON order_items.order_id = orders.order_id WHERE orders.status = 'Cancelled' LIMIT 100",
+      "latency_seconds": 3.074
     }
   ]
 }
