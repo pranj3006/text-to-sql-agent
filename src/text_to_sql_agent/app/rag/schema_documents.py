@@ -10,6 +10,7 @@ class SchemaDocument:
     category: str
     title: str
     content: str
+    similarity: float = 0.0
 
 
 SCHEMA_DOCUMENTS: tuple[SchemaDocument, ...] = (
