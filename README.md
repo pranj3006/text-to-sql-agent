@@ -21,31 +21,33 @@ Run these steps from the repository root. You need Python 3.12, [`uv`](https://d
    docker compose ps
    ```
 
-3. On the first setup only, load the retail schema and seed data into the database created by Compose (`app1_db`), enable pgvector, and grant the local user access:
+   The initializer runs only when PostgreSQL first creates its data directory. Existing persisted Compose data will not automatically gain the new `app_db`/`business_db` databases or roles; preserve existing data and migrate/create the databases and roles explicitly before using the updated URLs.
+
+3. On the first setup only, load the retail schema and seed data into `business_db`. Enable pgvector in `app_db` for schema-document embeddings, and grant the read-only business user access to the retail tables:
 
    ```sh
-   docker compose exec -T postgres psql -U postgres -d app1_db \
+   docker compose exec -T postgres psql -U postgres -d business_db \
      < src/text_to_sql_agent/db_scripts/001_schema.sql
-   docker compose exec -T postgres psql -U postgres -d app1_db \
+   docker compose exec -T postgres psql -U postgres -d business_db \
      < src/text_to_sql_agent/db_scripts/002_seed.sql
-   docker compose exec postgres psql -U postgres -d app1_db \
+   docker compose exec postgres psql -U postgres -d app_db \
      -c 'CREATE EXTENSION IF NOT EXISTS vector;'
-   docker compose exec postgres psql -U postgres -d app1_db \
-     -c 'GRANT USAGE ON SCHEMA public TO app1_user; GRANT SELECT ON ALL TABLES IN SCHEMA public TO app1_user;'
+   docker compose exec postgres psql -U postgres -d business_db \
+     -c 'REVOKE CREATE ON SCHEMA public FROM PUBLIC; GRANT USAGE ON SCHEMA public TO business_reader; GRANT SELECT ON ALL TABLES IN SCHEMA public TO business_reader; ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT ON TABLES TO business_reader;'
    ```
 
-   The seed script is not idempotent; do not re-run these schema and seed commands on a database that already contains the tables or seed rows. The Compose user is for local development and is not a dedicated read-only execution role.
+   The seed script is not idempotent; do not re-run these schema and seed commands on a database that already contains the tables or seed rows. Compose creates a separate `business_reader` role for the query target; the schema/table grants above enable read-only access after setup.
 
 4. Create a root-level `.env` file with the local Compose credentials and your OpenAI key:
 
    ```dotenv
-   DATABASE_URL=postgresql+asyncpg://app1_user:<password>@localhost:5433/app1_db
-   TEXT_TO_SQL_DATABASE_URL=postgresql+psycopg://app1_user:<password>@localhost:5433/app1_db
+   DATABASE_URL=postgresql+asyncpg://app_user:<password>@localhost:5433/app_db
+   TEXT_TO_SQL_DATABASE_URL=postgresql+psycopg://business_reader:<password>@localhost:5433/business_db
    TEXT_TO_SQL_SCHEMA=public
    OPENAI_API_KEY=<your-api-key>
    ```
 
-   `DATABASE_URL` is the async application connection; `TEXT_TO_SQL_DATABASE_URL` is the independent synchronous query connection. These Compose credentials are for local development only, not production.
+   `DATABASE_URL` is the async application connection to `app_db`, which stores `schema_documents`. `TEXT_TO_SQL_DATABASE_URL` is the independent synchronous query connection to `business_db`, which contains the retail business data. These Compose credentials are for local development only, not production.
 
 5. Start the API:
 
@@ -92,9 +94,9 @@ Use `uv run ...` for the commands below so they execute in the project environme
 Create a root-level `.env` file (do not commit it) with local connection details:
 
 ```dotenv
-DATABASE_URL=postgresql+asyncpg://<database-user>:<password>@localhost:5433/<application-database>
+DATABASE_URL=postgresql+asyncpg://app_user:<password>@localhost:5433/app_db
 # Independent synchronous connection used only to inspect and query analytics data:
-TEXT_TO_SQL_DATABASE_URL=postgresql+psycopg://<read-only-user>:<password>@<host>:5432/<analytics-database>
+TEXT_TO_SQL_DATABASE_URL=postgresql+psycopg://business_reader:<password>@localhost:5433/business_db
 # Optional; defaults to the target database's default schema:
 TEXT_TO_SQL_SCHEMA=public
 # Required only for OpenAI-backed operations:
@@ -103,7 +105,7 @@ OPENAI_API_KEY=<your-api-key>
 OPENAI_MODEL=<model-supported-by-your-account>
 ```
 
-Both database URLs are required. `DATABASE_URL` belongs exclusively to the FastAPI application's own persistence and remains an async URL. `TEXT_TO_SQL_DATABASE_URL` belongs exclusively to the Text-to-SQL query engine and must use a synchronous SQLAlchemy driver. It may point to a different database on a different server. The Text-to-SQL path reflects tables and views in the target schema and prompts the model using that database's SQL dialect.
+Both database URLs are required. `DATABASE_URL` belongs exclusively to the FastAPI application's own persistence and remains an async URL; locally it points to `app_db`, where `schema_documents` is stored. `TEXT_TO_SQL_DATABASE_URL` belongs exclusively to the Text-to-SQL query engine and must use a synchronous SQLAlchemy driver; locally it points to `business_db`, where the retail data is stored. Deployments may use different servers. The Text-to-SQL path reflects tables and views in the target schema and prompts the model using that database's SQL dialect.
 
 The target URL can use any SQLAlchemy dialect supported by SQLGlot when its synchronous DBAPI driver is installed. For example, SQL Server can use a URL such as `mssql+pyodbc://<user>:<password>@<host>/<database>?driver=ODBC+Driver+18+for+SQL+Server`; install the matching Python DBAPI package and system database driver separately. The application database and query database each have independent SQLAlchemy engines and connection pools.
 
@@ -126,26 +128,24 @@ docker compose up -d postgres
 docker compose ps
 ```
 
-On the first start, Compose's initialization script creates `app1_db` and `app1_user`, but it does **not** apply the retail schema, seed data, or pgvector extension. Apply the checked-in SQL once to a new/empty database as the local PostgreSQL administrator:
+On a fresh PostgreSQL data directory, Compose's initialization script creates `app_db` with owner `app_user` and `business_db` with the `business_reader` login role. It does **not** apply the retail schema, seed data, pgvector extension, or business-table grants. Load the retail schema and data into `business_db` as the local PostgreSQL administrator:
 
 ```sh
-docker compose exec -T postgres psql -U postgres -d app1_db \
+docker compose exec -T postgres psql -U postgres -d business_db \
   < src/text_to_sql_agent/db_scripts/001_schema.sql
-docker compose exec -T postgres psql -U postgres -d app1_db \
+docker compose exec -T postgres psql -U postgres -d business_db \
   < src/text_to_sql_agent/db_scripts/002_seed.sql
-docker compose exec postgres psql -U postgres -d app1_db \
+docker compose exec postgres psql -U postgres -d app_db \
   -c 'CREATE EXTENSION IF NOT EXISTS vector;'
-docker compose exec postgres psql -U postgres -d app1_db \
-  -c 'GRANT USAGE ON SCHEMA public TO app1_user; GRANT SELECT ON ALL TABLES IN SCHEMA public TO app1_user;'
+docker compose exec postgres psql -U postgres -d business_db \
+  -c 'REVOKE CREATE ON SCHEMA public FROM PUBLIC; GRANT USAGE ON SCHEMA public TO business_reader; GRANT SELECT ON ALL TABLES IN SCHEMA public TO business_reader; ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT ON TABLES TO business_reader;'
 ```
 
-For schema retrieval, apply the Alembic migrations using a database owner (or another role with DDL permissions), then grant the local indexer access:
+For schema retrieval, apply the Alembic migrations to `app_db` using `app_user` or another role with DDL permissions. The app database must be enabled for pgvector as shown above.
 
 ```sh
-DATABASE_URL='postgresql+asyncpg://postgres:<password>@localhost:5433/app1_db' \
+DATABASE_URL='postgresql+asyncpg://app_user:<password>@localhost:5433/app_db' \
   uv run --no-sync alembic -c src/text_to_sql_agent/alembic.ini upgrade head
-docker compose exec postgres psql -U postgres -d app1_db \
-  -c 'GRANT SELECT, INSERT, UPDATE, DELETE ON schema_documents TO app1_user;'
 uv run --no-sync python -m text_to_sql_agent.scripts.index_schema
 ```
 
@@ -157,7 +157,7 @@ uv run --no-sync alembic -c src/text_to_sql_agent/alembic.ini revision --autogen
 
 Review generated migrations before applying them. Alembic manages `schema_documents` and its embedding column; retail schema/seed setup remains in the SQL scripts above. If `schema_documents` was created outside Alembic, reconcile its Alembic version state before applying the migration.
 
-These are local-development instructions, not a production security setup. The current Compose initializer grants broad database privileges, and the project has not yet established a dedicated read-only execution role. Seed SQL is not idempotent; do not re-run it against a database that already contains the seed rows.
+These are local-development instructions, not a production security setup. The Compose `business_reader` role is granted SELECT on the business schema during setup, but production provisioning, secret management, and least-privilege policy still require review. Seed SQL is not idempotent; do not re-run it against a database that already contains the seed rows.
 
 ## Run the API
 
@@ -215,7 +215,7 @@ Run the commands below from the repository root after completing the local datab
 1. Refresh the expected results by executing the independent reference SQL:
 
    ```sh
-   DATABASE_URL='postgresql://<database-user>:<password>@localhost:5433/<database-name>' \
+   DATABASE_URL='postgresql://business_reader:<password>@localhost:5433/business_db' \
      uv run --no-sync python -m text_to_sql_agent.evaluation.query_generator.run_golden
    ```
 
@@ -233,18 +233,16 @@ The active golden-case list is currently only five cases due to a duplicate assi
 
 ### RAG retrieval evaluation
 
-The retrieval evaluators require the `schema_documents` table and indexed schema documents. First apply the Alembic migrations as a database owner (for an existing database, skip this if they are already applied):
+The retrieval evaluators require the `schema_documents` table and indexed schema documents in `app_db`. First apply the Alembic migrations as `app_user` (for an existing database, skip this if they are already applied):
 
 ```sh
-DATABASE_URL='postgresql+asyncpg://<database-owner>:<password>@localhost:5433/<database-name>' \
+DATABASE_URL='postgresql+asyncpg://app_user:<password>@localhost:5433/app_db' \
   uv run --no-sync alembic -c src/text_to_sql_agent/alembic.ini upgrade head
 ```
 
-Grant the local app user permission to index documents, then populate/update the 11 curated schema documents:
+Populate/update the 11 curated schema documents in the application database:
 
 ```sh
-docker compose exec postgres psql -U postgres -d app1_db \
-  -c 'GRANT SELECT, INSERT, UPDATE, DELETE ON schema_documents TO app1_user;'
 uv run --no-sync python -m text_to_sql_agent.scripts.index_schema
 ```
 
@@ -281,7 +279,7 @@ The repository does not yet integrate retrieval into the SQL-generation flow, so
 ## Project layout
 
 - `src/text_to_sql_agent/app/` — FastAPI entry point, prototype baseline, configuration, database access, and scaffolding.
-- `src/text_to_sql_agent/db_scripts/` — retail schema and seed data; `schema_documents` is managed by Alembic.
+- `src/text_to_sql_agent/db_scripts/` — retail schema and seed data for `business_db`; `schema_documents` in `app_db` is managed by Alembic.
 - `src/text_to_sql_agent/evaluation/` — reference/baseline runners and experimental retrieval metrics.
 - `src/text_to_sql_agent/tests/` — unit and database-dependent tests.
 - `src/text_to_sql_agent/migrations/` and `src/text_to_sql_agent/alembic.ini` — Alembic migration environment and configuration.

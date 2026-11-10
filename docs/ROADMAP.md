@@ -6,14 +6,14 @@ Progress is updated only when supported by repository and test evidence. Statuse
 
 | Phase | Status | Evidence-based summary |
 |---|---|---|
-| 01 — Database and ground truth | PARTIAL / NOT VERIFIED | Retail schema and seed SQL exist, but Compose initialization does not execute them. Alembic manages `schema_documents`, not the retail tables. No fresh-database test or verified database run was found. |
+| 01 — Database and ground truth | PARTIAL / NOT VERIFIED | Compose creates separate `app_db` and `business_db`; the retail schema/seed SQL are not automatically executed. Alembic manages `schema_documents` in `app_db`, not retail tables in `business_db`. No fresh-database test or verified database run was found. |
 | 02 — Baseline Text-to-SQL | PROTOTYPE / NOT END-TO-END TESTED | FastAPI route, reflected target schema, dialect-aware generation, SQLGlot validation, and a separate query-database connection exist. The query path was not run end to end. |
 | 03 — Evaluation harness | PARTIAL / NOT RUN | Runners and golden data exist. The imported case list is only five cases due to a second assignment overriding the earlier list. No fresh baseline report was produced. |
 | 04 — Schema RAG | IMPLEMENTED COMPONENTS; EVALUATION REPORTED, NOT REPRODUCED | Curated documents, FTS, OpenAI embeddings, pgvector retrieval, hybrid RRF, and a 15-case benchmark are present. Supplied benchmark figures favor FTS on the current corpus, but no raw report is checked in and results were not reproduced in this audit. Retrieval is not integrated into SQL generation. |
 | 05 — MCP integration | NOT STARTED | No MCP integration found. |
 | 06 — LangGraph workflow | NOT STARTED | No LangGraph integration found. |
 | 07 — Context and token optimization | NOT STARTED | No measurement or implementation found. |
-| 08 — Hardening | SCAFFOLDING ONLY | Auth/RBAC, cache, Celery, and telemetry code exists, but integration and operational behavior are not verified. The baseline does not show a complete SQL object allowlist or dedicated read-only DB role. |
+| 08 — Hardening | SCAFFOLDING ONLY | Auth/RBAC, cache, Celery, and telemetry code exists, but integration and operational behavior are not verified. Compose now provisions a `business_reader` login, but local SQL grants and runtime behavior are not verified and a complete SQL object/column policy is not established. |
 
 The current execution priority is Phase 01, followed by reliable Phase 02/03 verification. Early Phase 04/08 code does not satisfy those phase exit criteria and is not a reason to advance the roadmap.
 

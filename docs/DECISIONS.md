@@ -65,3 +65,11 @@ Record material decisions here. Do not rewrite history; supersede an earlier dec
 - **Decision:** Treat FTS as the preferred retrieval baseline for the current corpus. Keep vector and hybrid as experimental alternatives. Do not claim that FTS is generally superior or wire it as a Text-to-SQL runtime default without a separate integration decision.
 - **Alternatives considered:** Use hybrid because its reported ranking metrics are higher; select vector retrieval as the only semantic strategy; make no selection until a larger corpus exists.
 - **Consequences:** The current experimental baseline favors lower-latency FTS over hybrid ranking gains. The reported numbers have no checked-in raw output and were not reproduced during this audit; a durable benchmark report is required before treating them as independently verified.
+
+## ADR-0009 — Separate application and analytics databases locally
+- **Status:** Accepted
+- **Date:** 2026-11-10
+- **Context:** The FastAPI application persists schema-retrieval documents, while generated analytics SQL must execute only against the retail business data. Sharing a database obscures this boundary and risks directing generated SQL at application-owned data.
+- **Decision:** Use `app_db` for FastAPI persistence and `schema_documents`, configured through `DATABASE_URL`. Use `business_db` for retail tables and seed data, configured through `TEXT_TO_SQL_DATABASE_URL`. Local Compose provisions `app_user` as the application database owner and `business_reader` as the analytics login; documented setup grants that role read access to business tables.
+- **Alternatives considered:** Put application and retail tables in one database; use separate schemas within a single database; retain the old single-database Compose setup.
+- **Consequences:** Migrations and schema-document indexing run against `app_db`; Text-to-SQL generation, execution, baseline evaluation, and golden reference SQL use `business_db`. Compose provisions these databases and roles on a fresh PostgreSQL cluster; initialization and integration have not yet been verified end to end.
