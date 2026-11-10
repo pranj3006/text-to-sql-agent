@@ -9,9 +9,16 @@
 - `src/text_to_sql_agent/db_scripts/001_schema.sql` defines the current retail schema.
 - `src/text_to_sql_agent/db_scripts/002_seed.sql` defines deterministic sample rows.
 - `src/text_to_sql_agent/app/db/models.py` maps `schema_documents` as a SQLAlchemy model.
-- `migrations/versions/ef3a65e3fc1f_create_schema_documents.py` creates that table and its indexes.
+- `src/text_to_sql_agent/migrations/versions/ef3a65e3fc1f_create_schema_documents.py` creates `schema_documents`, its generated PostgreSQL full-text search vector, and indexes.
+- `src/text_to_sql_agent/migrations/versions/c8faa8d899e1_added_embedding_column_to_schema_.py` adds a nullable 1536-dimensional pgvector embedding column.
 - Alembic is configured for async PostgreSQL connections; the retail schema and seed data remain SQL bootstrap scripts.
 - `.database/init/01-init.sh` currently creates an application database and user only. Docker Compose does not mount or execute the schema and seed SQL files.
+
+## Schema retrieval storage
+
+The `schema_documents` table stores 11 curated table, relationship, and business-rule documents. PostgreSQL FTS uses the generated `search_vector` column and its GIN index. Vector retrieval stores optional embeddings in the `embedding` column; the current embedding configuration defaults to 1536 dimensions. `index_schema.py` upserts document text, while `index_schema_embeddings.py` generates and writes embeddings using the configured provider.
+
+FTS, vector, and hybrid retrieval are implemented as standalone components over this table. They are not yet wired into the Text-to-SQL generation path. The current Alembic migrations manage the retrieval table, not the retail tables. pgvector must be available in the server image and enabled in the application database before using vector retrieval; the API startup also attempts `CREATE EXTENSION IF NOT EXISTS vector`.
 
 ## Tables and relationships
 

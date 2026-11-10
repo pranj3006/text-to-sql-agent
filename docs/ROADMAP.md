@@ -1,15 +1,15 @@
 # Development Roadmap
 
-Progress is updated only when supported by repository and test evidence. Statuses below reflect the repository audit on 2026-11-06; they are not claims of successful end-to-end behavior.
+Progress is updated only when supported by repository and test evidence. Statuses below reflect the repository audit on 2026-11-10; they are not claims of successful end-to-end behavior.
 
 ## Audited status summary
 
 | Phase | Status | Evidence-based summary |
 |---|---|---|
-| 01 — Database and ground truth | PARTIAL / NOT VERIFIED | SQL schema and seed files exist, but Compose initialization does not execute them. No Alembic environment, fresh-database test, or verified database run was found. |
+| 01 — Database and ground truth | PARTIAL / NOT VERIFIED | Retail schema and seed SQL exist, but Compose initialization does not execute them. Alembic manages `schema_documents`, not the retail tables. No fresh-database test or verified database run was found. |
 | 02 — Baseline Text-to-SQL | PROTOTYPE / NOT END-TO-END TESTED | FastAPI route, reflected target schema, dialect-aware generation, SQLGlot validation, and a separate query-database connection exist. The query path was not run end to end. |
 | 03 — Evaluation harness | PARTIAL / NOT RUN | Runners and golden data exist. The imported case list is only five cases due to a second assignment overriding the earlier list. No fresh baseline report was produced. |
-| 04 — Schema RAG | EXPERIMENTAL / INCOMPLETE | Curated documents and PostgreSQL full-text retrieval exist. No embedding/vector retrieval or retrieval evaluation was found; package imports and async indexing are inconsistent. |
+| 04 — Schema RAG | IMPLEMENTED COMPONENTS; EVALUATION REPORTED, NOT REPRODUCED | Curated documents, FTS, OpenAI embeddings, pgvector retrieval, hybrid RRF, and a 15-case benchmark are present. Supplied benchmark figures favor FTS on the current corpus, but no raw report is checked in and results were not reproduced in this audit. Retrieval is not integrated into SQL generation. |
 | 05 — MCP integration | NOT STARTED | No MCP integration found. |
 | 06 — LangGraph workflow | NOT STARTED | No LangGraph integration found. |
 | 07 — Context and token optimization | NOT STARTED | No measurement or implementation found. |
@@ -69,20 +69,21 @@ Exit criteria:
 - Known failures categorized with actual outputs.
 
 ## Phase 04 — Schema RAG
-**Current status:** EXPERIMENTAL / INCOMPLETE; started before Phases 01–03 exit criteria were met
+**Current status:** RETRIEVAL COMPONENTS IMPLEMENTED; REPORTED METRICS NOT REPRODUCED; NOT INTEGRATED
 
 **Goal:** Improve relevant schema/business-context retrieval.
 
 Work:
-- Repair package and indexing boundaries.
-- Ingest traceable schema metadata and business definitions.
-- Add embeddings and vector retrieval only when baseline and retrieval evaluation justify it.
-- Evaluate retrieval relevance and downstream SQL/result accuracy.
+- Maintain the 11 traceable schema/business documents.
+- Keep document and embedding indexing repeatable; verify database permissions and migration setup.
+- Re-run the 15-case FTS/vector/hybrid comparison and preserve its raw output, configuration, and database state.
+- Keep FTS as the preferred baseline only for the current corpus unless a reproducible benchmark changes the trade-off.
+- Integrate retrieved context into SQL generation only after Phases 01–03 have reliable exit evidence; evaluate downstream SQL/result accuracy against the same baseline set.
 
 Exit criteria:
-- Repeatable ingestion and retrieval with integration tests.
-- Retrieval evaluation.
-- Comparison against the stable baseline showing measured impact.
+- Repeatable document/embedding ingestion and live retrieval integration tests.
+- Reproducible retrieval report for all strategies.
+- Downstream comparison against the stable baseline showing measured impact before claiming RAG improves query quality.
 
 ## Phase 05 — MCP integration
 **Current status:** NOT STARTED

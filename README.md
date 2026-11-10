@@ -1,6 +1,6 @@
 # Agentic Text-to-SQL
 
-A Python prototype for translating retail analytics questions into SQL and evaluating the result against reference queries. It is not a production-ready Text-to-SQL service: database initialization, SQL execution configuration, and the experimental schema-retrieval path still have known gaps.
+A Python prototype for translating retail analytics questions into SQL and evaluating the result against reference queries. It is not production-ready: fresh database setup and end-to-end query behavior are unverified, and the implemented FTS/vector/hybrid schema retrievers are experimental components not yet connected to SQL generation.
 
 See [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) for audited implementation status and [docs/ROADMAP.md](docs/ROADMAP.md) for phase goals.
 
@@ -21,26 +21,26 @@ Run these steps from the repository root. You need Python 3.12, [`uv`](https://d
    docker compose ps
    ```
 
-3. On the first setup only, load the retail schema and seed data, enable pgvector, and grant the local app user read access:
+3. On the first setup only, load the retail schema and seed data into the database created by Compose (`app1_db`), enable pgvector, and grant the local user access:
 
    ```sh
-   docker compose exec -T postgres psql -U postgres -d business_db \
+   docker compose exec -T postgres psql -U postgres -d app1_db \
      < src/text_to_sql_agent/db_scripts/001_schema.sql
-   docker compose exec -T postgres psql -U postgres -d business_db \
+   docker compose exec -T postgres psql -U postgres -d app1_db \
      < src/text_to_sql_agent/db_scripts/002_seed.sql
-   docker compose exec postgres psql -U postgres -d app_db \
+   docker compose exec postgres psql -U postgres -d app1_db \
      -c 'CREATE EXTENSION IF NOT EXISTS vector;'
-   docker compose exec postgres psql -U postgres -d app_db \
-     -c 'GRANT USAGE ON SCHEMA public TO app_user; GRANT SELECT ON ALL TABLES IN SCHEMA public TO app_user;'
+   docker compose exec postgres psql -U postgres -d app1_db \
+     -c 'GRANT USAGE ON SCHEMA public TO app1_user; GRANT SELECT ON ALL TABLES IN SCHEMA public TO app1_user;'
    ```
 
-   The seed script is not idempotent; do not re-run these schema and seed commands on a database that already contains the tables or seed rows.
+   The seed script is not idempotent; do not re-run these schema and seed commands on a database that already contains the tables or seed rows. The Compose user is for local development and is not a dedicated read-only execution role.
 
 4. Create a root-level `.env` file with the local Compose credentials and your OpenAI key:
 
    ```dotenv
-   DATABASE_URL=postgresql+asyncpg://app1_user:app1_user_password123@localhost:5433/app_db
-   TEXT_TO_SQL_DATABASE_URL=postgresql+psycopg://app1_user:app1_user_password123@localhost:5433/business_db
+   DATABASE_URL=postgresql+asyncpg://app1_user:<password>@localhost:5433/app1_db
+   TEXT_TO_SQL_DATABASE_URL=postgresql+psycopg://app1_user:<password>@localhost:5433/app1_db
    TEXT_TO_SQL_SCHEMA=public
    OPENAI_API_KEY=<your-api-key>
    ```
@@ -109,13 +109,13 @@ The target URL can use any SQLAlchemy dialect supported by SQLGlot when its sync
 
 Use a dedicated read-only account for `TEXT_TO_SQL_DATABASE_URL`. The application additionally enforces a single read-only query, restricts referenced tables/views to the reflected schema, and caps returned rows. PostgreSQL queries also use a read-only transaction and statement timeout; other database servers must enforce read-only access and appropriate execution limits through their database roles and driver/server configuration.
 
-To make a live embedding request using `OPENAI_API_KEY` from the application settings:
+To smoke-test the embedding API using `OPENAI_API_KEY` from the application settings:
 
 ```sh
-uv run --no-sync python -m text_to_sql_agent.scripts.run_embeddings
+uv run --no-sync python -m text_to_sql_agent.scripts.test_run_embeddings
 ```
 
-This calls the configured embedding model and may incur OpenAI API usage charges. An OpenAI API key is not required for database migrations or application settings that do not use an OpenAI client.
+This calls the configured embedding model and may incur API usage charges. To index the schema-document embeddings for vector or hybrid retrieval, first apply the migrations and index the schema documents as described below, then run `uv run --no-sync python -m text_to_sql_agent.scripts.index_schema_embeddings`. Both commands require `OPENAI_API_KEY`.
 
 ## Set up PostgreSQL
 
@@ -126,31 +126,27 @@ docker compose up -d postgres
 docker compose ps
 ```
 
-On the first start, Compose's initialization script creates `app_db` and `app_user`, but it does **not** apply the retail schema or seed data. Apply the checked-in SQL once to a new/empty database as the local PostgreSQL administrator:
+On the first start, Compose's initialization script creates `app1_db` and `app1_user`, but it does **not** apply the retail schema, seed data, or pgvector extension. Apply the checked-in SQL once to a new/empty database as the local PostgreSQL administrator:
 
 ```sh
-docker compose exec -T postgres psql -U postgres -d business_db \
+docker compose exec -T postgres psql -U postgres -d app1_db \
   < src/text_to_sql_agent/db_scripts/001_schema.sql
-docker compose exec -T postgres psql -U postgres -d business_db \
+docker compose exec -T postgres psql -U postgres -d app1_db \
   < src/text_to_sql_agent/db_scripts/002_seed.sql
-docker compose exec postgres psql -U postgres -d app_db \
+docker compose exec postgres psql -U postgres -d app1_db \
   -c 'CREATE EXTENSION IF NOT EXISTS vector;'
-```
-
-The app database user does not automatically receive SELECT privileges on tables created by the administrator. Grant local query access:
-
-```sh
-docker compose exec postgres psql -U postgres -d app_db \
+docker compose exec postgres psql -U postgres -d app1_db \
   -c 'GRANT USAGE ON SCHEMA public TO app1_user; GRANT SELECT ON ALL TABLES IN SCHEMA public TO app1_user;'
 ```
 
-For the optional schema-retrieval experiment, apply its Alembic migration using a database owner (or another role with DDL permissions), then grant the indexer access:
+For schema retrieval, apply the Alembic migrations using a database owner (or another role with DDL permissions), then grant the local indexer access:
 
 ```sh
-DATABASE_URL='postgresql+asyncpg://postgres:<password>@localhost:5433/app_db' \
+DATABASE_URL='postgresql+asyncpg://postgres:<password>@localhost:5433/app1_db' \
   uv run --no-sync alembic -c src/text_to_sql_agent/alembic.ini upgrade head
-docker compose exec postgres psql -U postgres -d app_db \
+docker compose exec postgres psql -U postgres -d app1_db \
   -c 'GRANT SELECT, INSERT, UPDATE, DELETE ON schema_documents TO app1_user;'
+uv run --no-sync python -m text_to_sql_agent.scripts.index_schema
 ```
 
 The Alembic configuration and migration files are under `src/text_to_sql_agent/` (`alembic.ini` and `migrations/`). When creating a migration from the repository root, pass the config path as well:
@@ -159,7 +155,7 @@ The Alembic configuration and migration files are under `src/text_to_sql_agent/`
 uv run --no-sync alembic -c src/text_to_sql_agent/alembic.ini revision --autogenerate -m "describe change"
 ```
 
-Review generated migrations before applying them. The current migration manages `schema_documents` only; retail schema/seed setup remains in the SQL scripts above. If `schema_documents` was created outside Alembic, reconcile its Alembic version state before applying the migration.
+Review generated migrations before applying them. Alembic manages `schema_documents` and its embedding column; retail schema/seed setup remains in the SQL scripts above. If `schema_documents` was created outside Alembic, reconcile its Alembic version state before applying the migration.
 
 These are local-development instructions, not a production security setup. The current Compose initializer grants broad database privileges, and the project has not yet established a dedicated read-only execution role. Seed SQL is not idempotent; do not re-run it against a database that already contains the seed rows.
 
@@ -189,22 +185,26 @@ The API startup and `/query` flow have not been verified end to end. Configure b
 
 ## Run tests
 
-Run isolated tests that do not need PostgreSQL or API credentials:
+Run retrieval unit tests without a live PostgreSQL server or external API. The settings URLs below are placeholders used only to satisfy application configuration:
 
 ```sh
+DATABASE_URL='postgresql+asyncpg://user:pass@127.0.0.1/app_db' \
+TEXT_TO_SQL_DATABASE_URL='sqlite:///unused.db' \
+OPENAI_API_KEY='' \
 uv run --no-sync pytest -q \
-  src/text_to_sql_agent/tests/test_metrics.py \
-  src/text_to_sql_agent/tests/test_schema_documents.py \
-  src/text_to_sql_agent/tests/test_index_schema.py
+  src/text_to_sql_agent/tests/rag/test_hybrid_retriever.py \
+  src/text_to_sql_agent/tests/rag/test_rrf.py \
+  src/text_to_sql_agent/tests/rag/test_retrieval_cases.py \
+  src/text_to_sql_agent/tests/rag/test_metrics.py
 ```
 
-The complete suite includes a live schema-retrieval test. It imports application settings and connects to PostgreSQL, so provide both `DATABASE_URL` and `TEXT_TO_SQL_DATABASE_URL`, ensure the schema-document table exists, and grant the configured user access before running. `OPENAI_API_KEY` is needed only for tests or operations that create an OpenAI client:
+The complete suite includes a live PostgreSQL FTS retrieval test. It imports application settings and connects to the configured database, so provide both `DATABASE_URL` and `TEXT_TO_SQL_DATABASE_URL`, ensure `schema_documents` has been migrated and indexed, and grant the configured user access before running. Embedding-provider unit tests mock the external API; live vector and hybrid evaluations require `OPENAI_API_KEY`.
 
 ```sh
 uv run --no-sync pytest -q
 ```
 
-The full suite currently fails in that integration test with `permission denied for table schema_documents` in the audited local database. The isolated test command is not a substitute for database integration coverage.
+Passing isolated tests does not establish database, model, or end-to-end coverage. No live retrieval evaluation is run by the isolated test command.
 
 ## Run evaluations
 
@@ -233,28 +233,36 @@ The active golden-case list is currently only five cases due to a duplicate assi
 
 ### RAG retrieval evaluation
 
-The retrieval evaluator requires the `schema_documents` table and indexed schema documents. First apply the Alembic migration as a database owner (for an existing database, skip this if the migration is already applied):
+The retrieval evaluators require the `schema_documents` table and indexed schema documents. First apply the Alembic migrations as a database owner (for an existing database, skip this if they are already applied):
 
 ```sh
 DATABASE_URL='postgresql+asyncpg://<database-owner>:<password>@localhost:5433/<database-name>' \
   uv run --no-sync alembic -c src/text_to_sql_agent/alembic.ini upgrade head
 ```
 
-Grant the local app user permission to index documents, then populate/update them:
+Grant the local app user permission to index documents, then populate/update the 11 curated schema documents:
 
 ```sh
-docker compose exec postgres psql -U postgres -d app_db \
+docker compose exec postgres psql -U postgres -d app1_db \
   -c 'GRANT SELECT, INSERT, UPDATE, DELETE ON schema_documents TO app1_user;'
 uv run --no-sync python -m text_to_sql_agent.scripts.index_schema
 ```
 
-Now run the retrieval metrics:
+Run the FTS benchmark (no embedding API call):
 
 ```sh
-uv run --no-sync python -m text_to_sql_agent.evaluation.rag.evaluate_retrieval
+uv run --no-sync python -m text_to_sql_agent.evaluation.rag.evaluate_fts_retrieval
 ```
 
-This prints Recall@k, Precision@k, MRR, and nDCG metrics. It evaluates which schema documents are retrieved, **not** whether generated SQL or final answers improve, and does not call the model. The commands use `DATABASE_URL` from `.env` for indexing and retrieval, so keep it pointed at the local application database and ensure both required database URLs are configured.
+For vector or hybrid retrieval, index embeddings first:
+
+```sh
+uv run --no-sync python -m text_to_sql_agent.scripts.index_schema_embeddings
+uv run --no-sync python -m text_to_sql_agent.evaluation.rag.evaluate_vector_retrieval
+uv run --no-sync python -m text_to_sql_agent.evaluation.rag.evaluate_hybrid_retrieval
+```
+
+Vector and hybrid runs call the configured embedding API for each benchmark question and may incur usage charges; they do not call the chat model. The three evaluators use the same 15 retrieval cases and report Recall@k, Precision@5, MRR@10, nDCG@5, and latency. They evaluate retrieved documents, **not** whether SQL generation or final answers improve. The scripts print results but do not save a benchmark report. The repository does not yet integrate retrieval into the SQL-generation flow.
 
 ### Which evaluation should I run, and when?
 
@@ -263,15 +271,17 @@ This prints Recall@k, Precision@k, MRR, and nDCG metrics. It evaluates which sch
 | Changes to deterministic metric/retrieval helpers or schema-document construction | Isolated pytest command (and the relevant focused tests) | Fast feedback without requiring the database or model |
 | Schema, seed data, or reference SQL changes | `run_golden` | Re-check the independently authored expected results against the database |
 | Prompt, model, or reflected-schema changes | `run_baseline` | Measure query/result behavior against the same reference set |
-| Schema documents, search query, ranking, or retrieval changes | `evaluate_retrieval` | Measure retrieval relevance independently of SQL generation |
+| FTS changes | `evaluate_fts_retrieval` | Measure full-text retrieval relevance |
+| Embedding model, vector index, or vector retrieval changes | `evaluate_vector_retrieval` | Measure embedding retrieval relevance |
+| RRF or hybrid retrieval changes | `evaluate_hybrid_retrieval` | Compare hybrid ranking and latency with the same cases |
 | A future integrated RAG-to-SQL implementation | Run retrieval evaluation and the **same end-to-end golden set** for both baseline and RAG | Compare retrieval quality and downstream result accuracy on identical data/questions; do not claim RAG improvement from retrieval metrics alone |
 
-The repository does not yet integrate retrieval into the SQL-generation flow, so there is currently no valid end-to-end RAG-versus-baseline evaluation command. Save the baseline report before changing the approach, keep the dataset and cases fixed, and compare dimensions separately (execution, result accuracy, latency, and model usage).
+The repository does not yet integrate retrieval into the SQL-generation flow, so there is currently no valid end-to-end RAG-versus-baseline evaluation command. Keep the dataset and cases fixed, save benchmark output externally if needed, and compare downstream dimensions separately (execution, result accuracy, latency, and model usage) once that integration exists.
 
 ## Project layout
 
 - `src/text_to_sql_agent/app/` — FastAPI entry point, prototype baseline, configuration, database access, and scaffolding.
-- `src/text_to_sql_agent/db_scripts/` — retail schema, seed data, and schema-document SQL.
+- `src/text_to_sql_agent/db_scripts/` — retail schema and seed data; `schema_documents` is managed by Alembic.
 - `src/text_to_sql_agent/evaluation/` — reference/baseline runners and experimental retrieval metrics.
 - `src/text_to_sql_agent/tests/` — unit and database-dependent tests.
 - `src/text_to_sql_agent/migrations/` and `src/text_to_sql_agent/alembic.ini` — Alembic migration environment and configuration.

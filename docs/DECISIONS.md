@@ -57,3 +57,11 @@ Record material decisions here. Do not rewrite history; supersede an earlier dec
 - **Decision:** Keep `DATABASE_URL` exclusively for application persistence and add `TEXT_TO_SQL_DATABASE_URL` for the Text-to-SQL target. Reflect the target's configured/default schema at runtime and use its SQL dialect for generation and validation. Support synchronous SQLAlchemy dialects understood by SQLGlot when their DBAPI drivers are installed.
 - **Alternatives considered:** Reuse `DATABASE_URL`; add a dedicated implementation and package for every database product; keep the retail schema hard-coded in the prompt.
 - **Consequences:** The target connection is independently configured and pooled. A suitable synchronous DBAPI driver must be installed for each deployment target. All targets must use a dedicated read-only database principal; database-specific execution limits beyond PostgreSQL and SQLite still require driver/server configuration. Runtime reflection currently selects one schema and exposes its tables and views to the workflow.
+
+## ADR-0008 — Prefer FTS for the current schema-retrieval corpus
+- **Status:** Accepted for the current benchmark corpus; not a runtime default
+- **Date:** 2026-11-10
+- **Context:** The current corpus contains 11 curated schema/business documents, and the 15-case retrieval benchmark compares FTS, vector, and hybrid RRF retrieval. The supplied progress summary reports that FTS has the best recall/precision trade-off and substantially lower latency, while hybrid has better reported MRR/nDCG.
+- **Decision:** Treat FTS as the preferred retrieval baseline for the current corpus. Keep vector and hybrid as experimental alternatives. Do not claim that FTS is generally superior or wire it as a Text-to-SQL runtime default without a separate integration decision.
+- **Alternatives considered:** Use hybrid because its reported ranking metrics are higher; select vector retrieval as the only semantic strategy; make no selection until a larger corpus exists.
+- **Consequences:** The current experimental baseline favors lower-latency FTS over hybrid ranking gains. The reported numbers have no checked-in raw output and were not reproduced during this audit; a durable benchmark report is required before treating them as independently verified.

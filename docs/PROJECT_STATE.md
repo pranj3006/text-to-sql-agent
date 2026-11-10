@@ -1,72 +1,68 @@
 # Project State — Agentic Text-to-SQL
 
 **Audited:** 2026-11-10
-**Overall status:** Prototype; end-to-end behavior and fresh database setup remain unverified.
-**Current focus:** Make database setup reproducible, fix the full-suite integration-test permissions, and verify the newly separated application/query database connections end to end.
+
+**Overall status:** Prototype; fresh database setup and end-to-end query behavior are not verified.
+
+**Current focus:** Reproduce the retrieval benchmark against a prepared database, preserve its full output, and continue stabilizing database setup and baseline evaluation before advancing the roadmap.
 
 ## Objective
 
 Translate natural-language retail analytics questions into safe SQL, execute against controlled PostgreSQL data, verify results, and return an evidence-backed answer with SQL and execution metadata.
 
-## Stack observed
+## Current implementation
 
-| Area | Repository evidence |
-|---|---|
-| Python | Python 3.12.0 in the audit environment; `pyproject.toml` requires Python >=3.12 |
-| API | FastAPI app in `src/text_to_sql_agent/app/main.py` |
-| Database | PostgreSQL 17 / pgvector PostgreSQL 17 image in Docker Compose |
-| Data access | Async SQLAlchemy engine/session for app persistence; independent synchronous engine for the Text-to-SQL target |
-| SQL parsing | SQLGlot parses and serializes SQL using the reflected target dialect |
-| Model | OpenAI client in the baseline; configured model defaults to `gpt-5.5` in code |
-| Tests | pytest; unit tests plus a live PostgreSQL retrieval test |
-| Schema changes | Retail bootstrap/seed SQL remains; `schema_documents` now has a SQLAlchemy model and Alembic migration |
-| Later-stage tools | No MCP SDK or LangGraph dependency or implementation found |
+| Area | Implemented | Tested | Verified / limits |
+|---|---|---|---|
+| Retail database and ground truth | Retail schema, seed SQL, and query-generator reference data exist. | No fresh-database bootstrap test recorded. | Compose creates `app1_db` and `app1_user` but does not apply the schema or seed data. No fresh database setup was verified. |
+| Baseline Text-to-SQL | FastAPI `/query`, reflected target schema, model SQL generation, SQLGlot validation, and separate query engine exist. | Unit coverage exists for configuration and parts of SQL generation/validation. | No live model-backed `/query` run or end-to-end result verification was performed. |
+| Query-generator evaluation | Reference and model-backed evaluation runners exist. | Not freshly run against a live database in this audit. | The active golden-case module still assigns `GOLDEN_CASES` twice; the later assignment leaves five cases (Q02, Q03, Q04, Q07, Q09). Existing JSON outputs are not fresh evidence. |
+| Schema document corpus | 11 curated table, relationship, and business-rule documents; Alembic migrations manage `schema_documents` and its embedding column. | Schema-document and migration-related unit tests exist. | Fresh migration/indexing and live database permissions were not verified in this audit. |
+| Schema retrieval | PostgreSQL FTS, OpenAI embedding generation, pgvector vector retrieval, and hybrid FTS/vector retrieval with RRF are implemented. The hybrid retriever calls FTS and vector search concurrently. | Unit tests cover RRF, hybrid behavior, retrieval metrics, and benchmark-case integrity. | These are standalone experimental components. The Text-to-SQL workflow does not use them; no downstream RAG-versus-baseline result is available. |
+| Retrieval evaluation | Three evaluators share 15 cases (R01–R15) and report Recall@3/5/10, Precision@5, MRR@10, nDCG@5, and latency. | Benchmark definition and metric logic are covered by unit tests. | Evaluators print to stdout and do not persist a report. A live evaluation was not run during this audit. Vector and hybrid evaluation call the embedding API. |
+| MCP / LangGraph | No integration found. | — | Not started. |
+| Hardening | Auth/RBAC, cache, Celery, and telemetry scaffolding exists. | Not verified as complete query-path behavior. | No production readiness or security claim is supported. |
 
-Dependency declarations are ranges; consult `uv.lock` for the lock resolution. Presence of a package or scaffold is not evidence that a feature works.
+## Recent code changes reviewed
 
-## Evidence-based implementation status
+- The retrieval benchmark in `src/text_to_sql_agent/evaluation/rag/retrieval_cases.py` now defines 15 cases, up from the five cases in the previous committed version.
+- The working tree adds hybrid retrieval with Reciprocal Rank Fusion, its evaluator, and focused tests under `src/text_to_sql_agent/app/rag/`, `src/text_to_sql_agent/evaluation/rag/`, and `src/text_to_sql_agent/tests/rag/`.
+- The working tree deletes `src/text_to_sql_agent/scripts/run_embeddings.py`. The current tree contains `test_run_embeddings.py` for an embedding smoke test and `index_schema_embeddings.py` for indexing document vectors; README commands now use those paths.
+- These changes are still uncommitted in the current worktree. The documentation describes the current worktree, not only the last commit.
 
-| Area | Status | Evidence and limits |
-|---|---|---|
-| Schema-document persistence | IMPLEMENTED; MODEL TESTED; MIGRATION NOT APPLIED | `app/db/models.py`, `migrations/env.py`, and `migrations/versions/ef3a65e3fc1f_create_schema_documents.py` define the model and migration. PostgreSQL offline SQL generation succeeded; no `DATABASE_URL` was available to apply it to a live database. Alembic autogeneration is limited to `schema_documents`; retail tables remain SQL-managed. |
-| Retail schema and seed | IMPLEMENTED as SQL files; NOT VERIFIED on a fresh database | `src/text_to_sql_agent/db_scripts/001_schema.sql` and `002_seed.sql` define tables/data. `.database/init/01-init.sh` creates a database and user but does not execute these files. |
-| Baseline API and SQL generation | IMPLEMENTED as prototype; NOT END-TO-END TESTED | `/query` reflects tables/views from required `TEXT_TO_SQL_DATABASE_URL` and prompts using its SQL dialect. Required `DATABASE_URL` remains the async application persistence connection. No model/API execution was performed. |
-| SQL policy/execution | PARTIAL; NOT SECURITY-VERIFIED | SQLGlot parsing, SELECT/set-operation checks, a function denylist, a reflected table/view allowlist, and a 100-row cap are present. PostgreSQL execution uses a read-only transaction and timeout; SQLite uses query-only mode. Other backends require server/driver read-only permissions and execution limits; columns are not individually allowlisted. No dedicated read-only role is configured in the checked-in database init. |
-| Golden cases | IMPLEMENTED, but effective set is unexpectedly limited | The module assigns `GOLDEN_CASES` twice. Importing it yields exactly Q02, Q03, Q04, Q07, and Q09; the earlier 12-case list is overwritten. |
-| Evaluation | PARTIAL; NOT RUN AGAINST A LIVE DATABASE | Baseline and reference-result runners exist. The comparator sorts rows regardless of the declared `ORDER_SENSITIVE_CASES`, and it uses exact normalized numeric equality. Existing JSON outputs are snapshots, not fresh results from this audit. |
-| Schema retrieval | EXPERIMENTAL / INCOMPLETE | Curated schema documents and PostgreSQL full-text search exist. No embedding or vector retrieval path was found. The indexing entry point awaits its async indexer, but middleware modules still contain old `app.*` imports. The live retrieval test currently fails due to database table permissions. |
-| Authentication, RBAC, cache, Celery, telemetry | SCAFFOLDING; NOT VERIFIED | Related modules and dependencies exist, but these paths are not demonstrated by the query endpoint or tests. Configuration references also exceed the declared settings. |
-| MCP, LangGraph, token optimization | NOT IMPLEMENTED | No project integration found. |
+## Retrieval benchmark and current decision
 
-## Tests and checks run
+The supplied progress summary reports the following comparison on the current 11-document corpus:
 
-- `DATABASE_URL='postgresql+asyncpg://test:test@localhost/test' env -u OPENAI_API_KEY uv run --no-sync pytest -q src/text_to_sql_agent/tests/test_config.py src/text_to_sql_agent/tests/test_schema_document_model.py src/text_to_sql_agent/tests/embeddings/test_openai_provider.py src/text_to_sql_agent/tests/test_schema_documents.py src/text_to_sql_agent/tests/test_index_schema.py src/text_to_sql_agent/tests/rag/test_metrics.py` — **26 passed** in 1.15s; only the existing `pytest-asyncio` fixture-loop deprecation warning was emitted.
-- `DATABASE_URL='postgresql+asyncpg://test:test@localhost/test' env -u OPENAI_API_KEY uv run --no-sync alembic upgrade head --sql` — **passed**, rendering PostgreSQL DDL without an OpenAI key or live connection.
-- `uv run --no-sync python -m compileall -q src/text_to_sql_agent migrations` and `git diff --check` — **passed**.
-- `DATABASE_URL='postgresql+asyncpg://migration_user:placeholder@localhost/example_db' uv run --no-sync alembic upgrade head --sql` — **passed**; emitted PostgreSQL DDL for the table, generated search vector, category index, and one GIN index. This rendered SQL only; it did not connect to or alter a database.
-- `git diff --check` — **passed** after implementation.
-- `uv run --no-sync pytest -q src/text_to_sql_agent/tests/test_metrics.py src/text_to_sql_agent/tests/test_schema_documents.py src/text_to_sql_agent/tests/test_index_schema.py` — **12 passed** in 0.42s. pytest emitted a `pytest-asyncio` deprecation warning because the default fixture loop scope is unset.
-- `uv run --no-sync pytest -q` without environment settings — **collection failed** because `DATABASE_URL` and `OPENAI_API_KEY` are required during settings import.
-- Full suite with local Compose-style credentials present — **17 passed, 1 failed** in 1.21s. `test_retrieve_schema_documents` reached PostgreSQL but failed with `permission denied for table schema_documents`.
-- `uv run --no-sync python -m compileall -q src/text_to_sql_agent` — **passed**.
-- `docker compose config --quiet` — **passed**.
-- `uv run --no-sync python -c "from text_to_sql_agent.evaluation.golden_cases import GOLDEN_CASES; print(len(GOLDEN_CASES), [case['id'] for case in GOLDEN_CASES])"` — **passed**; output: `5 ['Q02', 'Q03', 'Q04', 'Q07', 'Q09']`.
-- `DATABASE_URL='postgresql+asyncpg://app/app_db' env -u OPENAI_API_KEY uv run --no-sync pytest -q src/text_to_sql_agent/tests/test_config.py src/text_to_sql_agent/tests/test_text_to_sql.py` — **8 passed** in 1.28s. This covers separate/optional URL configuration, SQLite schema reflection and read-only mode reset, table allowlisting, result row cap, and SQL Server dialect parsing/serialization; it does not connect to SQL Server or call a model.
-- `DATABASE_URL='postgresql+asyncpg://app/app_db' TEXT_TO_SQL_DATABASE_URL='sqlite:///analytics.db' env -u OPENAI_API_KEY uv run --no-sync pytest -q src/text_to_sql_agent/tests/test_config.py src/text_to_sql_agent/tests/test_text_to_sql.py src/text_to_sql_agent/tests/test_schema_document_model.py src/text_to_sql_agent/tests/embeddings/test_openai_provider.py src/text_to_sql_agent/tests/test_schema_documents.py src/text_to_sql_agent/tests/test_index_schema.py src/text_to_sql_agent/tests/rag/test_metrics.py` — **35 passed** in 1.55s after making both database URLs required. The new tests use SQLite and mock the model; no external SQL Server or model service was contacted.
-- `git diff --check` — **passed** after the external-database change.
+| Metric | FTS | Vector | Hybrid RRF |
+|---|---:|---:|---:|
+| Recall@3 | 0.644 | 0.622 | 0.622 |
+| Recall@5 | 0.833 | 0.755 | 0.833 |
+| Recall@10 | 1.000 | 1.000 | 1.000 |
+| Precision@5 | 0.720 | 0.667 | 0.720 |
+| MRR@10 | 0.956 | 0.967 | 1.000 |
+| nDCG@5 | 0.921 | 0.890 | 0.954 |
+| Mean latency (ms) | 6.88 | 433.93 | 425.10 |
 
-The database-backed test used the existing local database; a fresh Compose initialization, schema/seed setup, API request, model call, and baseline evaluation were not run. No runtime correctness or security behavior is claimed as verified.
+These are reported values, not verified outputs: the repository contains no raw retrieval report and the benchmark was not run during this audit. They support using FTS as the preferred baseline for this corpus, while keeping vector and hybrid as experimental alternatives. This is not a default in the SQL-generation runtime, and the result should not be generalized to a larger corpus. Recall@10 is saturated at the configured top-10 limit and is not sufficiently discriminative here. See [EVALUATION.md](EVALUATION.md) for reproduction requirements and limitations.
 
-## Key discrepancies and limitations
+## Documentation reconciliation
 
-- The project has moved under `src/text_to_sql_agent/`, but several support modules still import the former top-level `app` package.
-- Alembic currently manages only `schema_documents`; retail tables and seeds are still managed by SQL scripts. The new migration has not been applied to a live database.
-- The Compose init script creates a database and user but does not apply the retail schema/seed scripts or grant the app user access to tables created by the administrator. The live retrieval test currently confirms a `schema_documents` permission failure.
-- The API app uses an async SQLAlchemy engine from `DATABASE_URL`. The query workflow lazily creates its own synchronous engine from `TEXT_TO_SQL_DATABASE_URL`; it does not fall back to the application connection. A synchronous DBAPI driver compatible with the target SQLAlchemy dialect must be installed. The baseline evaluation continues to use its PostgreSQL retail reference queries.
-- Both `DATABASE_URL` and `TEXT_TO_SQL_DATABASE_URL` are required when application settings are imported; the full suite includes a live database test without a unit/integration marker split. `OPENAI_API_KEY` is optional at settings load and required only when creating an OpenAI client.
-- The README and earlier project documents described initial scaffolding rather than the current repository and have been reconciled as part of this audit.
-- No production readiness, restricted database role, or end-to-end correctness claim is supported.
+The supplied progress summary describes Phases 1–3 as completed. The checked-in implementation and previous audit evidence do not yet substantiate that completion: Compose does not initialize the retail schema/seed, the baseline has not been exercised end to end, and no fresh live query-generator evaluation is recorded. Those phases remain partial/unverified until their documented exit criteria are demonstrated. Phase 4 retrieval components are implemented, but the reported benchmark is not reproducible from a checked-in artifact and retrieval is not integrated into SQL generation.
 
-## Immediate next task
+## Verification performed in this audit
 
-Make fresh PostgreSQL initialization reproducible: apply the checked-in retail schema and seed data, establish appropriate local grants and a separate least-privilege runtime query role, and add a smoke test for schema/data setup. Add or confirm target-specific column/statement limits and integration-test the Text-to-SQL path against a live PostgreSQL target and a SQL Server target when available. Then fix the duplicate golden-case override and result-comparison ordering/tolerance behavior; run reference and baseline evaluations only after the database workflow is repeatable.
+- `DATABASE_URL='postgresql+asyncpg://user:pass@127.0.0.1/app_db' TEXT_TO_SQL_DATABASE_URL='sqlite:///unused.db' OPENAI_API_KEY='' uv run --no-sync pytest -q src/text_to_sql_agent/tests/rag/test_hybrid_retriever.py src/text_to_sql_agent/tests/rag/test_rrf.py src/text_to_sql_agent/tests/rag/test_retrieval_cases.py src/text_to_sql_agent/tests/rag/test_metrics.py` — **34 passed** in 1.08s. This is unit coverage; it does not connect to PostgreSQL or call the embedding API.
+- A broader focused invocation including `tests/rag/test_retriever.py` yielded 38 passed and one live FTS test failure because the configured local PostgreSQL endpoint refused the connection. No live retrieval behavior is claimed as verified.
+- `git diff --check` — **passed** after documentation edits.
+
+## Known gaps and next task
+
+- The retrieval case model has a `retrieval_query` field, but the FTS/vector/hybrid evaluators pass `question` instead. Confirm the intended benchmark input and either use or remove that unused field.
+- `SchemaVectorRetriever.retrieve` is annotated as returning `list[dict]` but returns `SchemaDocument` objects; the standalone [test_vector_retriever.py](../src/text_to_sql_agent/evaluation/rag/test_vector_retriever.py) still indexes those objects as dictionaries. The main vector evaluator uses attribute access, but this probe and return type should be aligned.
+- Make fresh PostgreSQL initialization reproducible, including ordered retail schema/seed setup, pgvector, schema-document migrations, and appropriate grants. The checked-in Compose initializer creates a broad-privilege local user; it does not create a dedicated read-only query principal.
+- Re-run FTS/vector/hybrid evaluation with the same 15 cases; record the database/document state, embedding model, exact commands, and complete raw output in a durable report.
+- Fix the query-generator golden-case override and result-comparison ordering/tolerance policy before relying on baseline metrics.
+- Verify the baseline with a live database and model only after database setup is reproducible. Keep MCP and LangGraph out of scope until earlier phase exit criteria are met.
+
+See [ROADMAP.md](ROADMAP.md) for phase status, [ARCHITECTURE.md](ARCHITECTURE.md) for observed wiring, and [DECISIONS.md](DECISIONS.md) for recorded decisions.
