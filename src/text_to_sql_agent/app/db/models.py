@@ -3,7 +3,7 @@ from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from text_to_sql_agent.app.db.base import Base, TimestampMixin
-
+from pgvector.sqlalchemy import Vector
 
 class SchemaDocumentModel(TimestampMixin, Base):
     __tablename__ = "schema_documents"
@@ -28,4 +28,8 @@ class SchemaDocumentModel(TimestampMixin, Base):
             || setweight(to_tsvector('english'::regconfig, COALESCE(content, ''::text)), 'B'::"char")""",
             persisted=True,
         ),
+    )
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(1536),
+        nullable=True,
     )
