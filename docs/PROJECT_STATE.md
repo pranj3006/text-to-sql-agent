@@ -1,6 +1,6 @@
 # Project State — Agentic Text-to-SQL
 
-**Audited:** 2026-11-06
+**Audited:** 2026-11-10
 **Overall status:** Prototype; end-to-end behavior and fresh database setup remain unverified.
 **Current focus:** Make database setup reproducible, fix the full-suite integration-test permissions, and separate async/sync database configuration before claiming the API or evaluations run end to end.
 
@@ -19,7 +19,7 @@ Translate natural-language retail analytics questions into safe SQL, execute aga
 | SQL parsing | SQLGlot dependency and use in the baseline validator |
 | Model | OpenAI client in the baseline; configured model defaults to `gpt-5.5` in code |
 | Tests | pytest; 18 collected tests including a live PostgreSQL retrieval test |
-| Schema changes | SQL bootstrap/seed scripts exist; no Alembic configuration or migration files were found |
+| Schema changes | Retail bootstrap/seed SQL remains; `schema_documents` now has a SQLAlchemy model and Alembic migration |
 | Later-stage tools | No MCP SDK or LangGraph dependency or implementation found |
 
 Dependency declarations are ranges; consult `uv.lock` for the lock resolution. Presence of a package or scaffold is not evidence that a feature works.
@@ -28,6 +28,7 @@ Dependency declarations are ranges; consult `uv.lock` for the lock resolution. P
 
 | Area | Status | Evidence and limits |
 |---|---|---|
+| Schema-document persistence | IMPLEMENTED; MODEL TESTED; MIGRATION NOT APPLIED | `app/db/models.py`, `migrations/env.py`, and `migrations/versions/ef3a65e3fc1f_create_schema_documents.py` define the model and migration. PostgreSQL offline SQL generation succeeded; no `DATABASE_URL` was available to apply it to a live database. Alembic autogeneration is limited to `schema_documents`; retail tables remain SQL-managed. |
 | Retail schema and seed | IMPLEMENTED as SQL files; NOT VERIFIED on a fresh database | `src/text_to_sql_agent/db_scripts/001_schema.sql` and `002_seed.sql` define tables/data. `.database/init/01-init.sh` creates a database and user but does not execute these files. |
 | Baseline API and SQL generation | IMPLEMENTED as prototype; NOT END-TO-END TESTED | `/query` delegates to a static-context OpenAI generation path. The app uses an async engine while baseline execution creates a sync engine from the same `DATABASE_URL`; no model/API execution was performed in this audit. |
 | SQL policy/execution | PARTIAL; NOT SECURITY-VERIFIED | SQLGlot parsing, SELECT/set-operation type checks, a function denylist, injected row cap, read-only transaction, and statement timeout are present. No object allowlist is present in this path. The checked-in DB init grants the application user all database privileges; no dedicated read-only role is defined there. |
@@ -39,6 +40,11 @@ Dependency declarations are ranges; consult `uv.lock` for the lock resolution. P
 
 ## Tests and checks run
 
+- `DATABASE_URL='postgresql+asyncpg://test:test@localhost/test' env -u OPENAI_API_KEY uv run --no-sync pytest -q src/text_to_sql_agent/tests/test_config.py src/text_to_sql_agent/tests/test_schema_document_model.py src/text_to_sql_agent/tests/embeddings/test_openai_provider.py src/text_to_sql_agent/tests/test_schema_documents.py src/text_to_sql_agent/tests/test_index_schema.py src/text_to_sql_agent/tests/rag/test_metrics.py` — **26 passed** in 1.15s; only the existing `pytest-asyncio` fixture-loop deprecation warning was emitted.
+- `DATABASE_URL='postgresql+asyncpg://test:test@localhost/test' env -u OPENAI_API_KEY uv run --no-sync alembic upgrade head --sql` — **passed**, rendering PostgreSQL DDL without an OpenAI key or live connection.
+- `uv run --no-sync python -m compileall -q src/text_to_sql_agent migrations` and `git diff --check` — **passed**.
+- `DATABASE_URL='postgresql+asyncpg://migration_user:placeholder@localhost/example_db' uv run --no-sync alembic upgrade head --sql` — **passed**; emitted PostgreSQL DDL for the table, generated search vector, category index, and one GIN index. This rendered SQL only; it did not connect to or alter a database.
+- `git diff --check` — **passed** after implementation.
 - `uv run --no-sync pytest -q src/text_to_sql_agent/tests/test_metrics.py src/text_to_sql_agent/tests/test_schema_documents.py src/text_to_sql_agent/tests/test_index_schema.py` — **12 passed** in 0.42s. pytest emitted a `pytest-asyncio` deprecation warning because the default fixture loop scope is unset.
 - `uv run --no-sync pytest -q` without environment settings — **collection failed** because `DATABASE_URL` and `OPENAI_API_KEY` are required during settings import.
 - Full suite with local Compose-style credentials present — **17 passed, 1 failed** in 1.21s. `test_retrieve_schema_documents` reached PostgreSQL but failed with `permission denied for table schema_documents`.
@@ -51,10 +57,11 @@ The database-backed test used the existing local database; a fresh Compose initi
 ## Key discrepancies and limitations
 
 - The project has moved under `src/text_to_sql_agent/`, but several support modules still import the former top-level `app` package.
+- Alembic currently manages only `schema_documents`; retail tables and seeds are still managed by SQL scripts. The new migration has not been applied to a live database.
 - The Compose init script creates a database and user but does not apply the retail schema/seed scripts or grant the app user access to tables created by the administrator. The live retrieval test currently confirms a `schema_documents` permission failure.
 - The API app uses an async SQLAlchemy engine while the baseline query path creates a separate synchronous engine and reads environment variables directly.
 - The app's async and sync engines share `DATABASE_URL`, although they require different database driver URLs. The reference runner also uses `psycopg` directly and expects its own compatible DSN. The README documents current commands and limitations; the API query path still needs configuration separation.
-- The standard pytest invocation needs `DATABASE_URL` and `OPENAI_API_KEY` at collection time, and the full suite includes a live database test without a unit/integration marker split.
+- `DATABASE_URL` is still required when application settings are imported, and the full suite includes a live database test without a unit/integration marker split. `OPENAI_API_KEY` is optional at settings load and required only when creating an OpenAI client.
 - The README and earlier project documents described initial scaffolding rather than the current repository and have been reconciled as part of this audit.
 - No production readiness, restricted database role, or end-to-end correctness claim is supported.
 

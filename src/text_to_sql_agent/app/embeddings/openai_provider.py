@@ -19,6 +19,8 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         client: AsyncOpenAI | None = None,
     ) -> None:
         self._settings = settings or EmbeddingSettings.from_environment()
+        if client is None and not app_settings.OPENAI_API_KEY:
+            raise RuntimeError("OPENAI_API_KEY must be configured to use OpenAI embeddings.")
         self._client = (
             client
             if client is not None

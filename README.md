@@ -33,6 +33,7 @@ Create a root-level `.env` file (do not commit it) with local connection details
 
 ```dotenv
 DATABASE_URL=postgresql+asyncpg://<database-user>:<password>@localhost:5433/<database-name>
+# Required only for OpenAI-backed operations:
 OPENAI_API_KEY=<your-api-key>
 # Optional for baseline generation:
 OPENAI_MODEL=<model-supported-by-your-account>
@@ -46,7 +47,7 @@ To make a live embedding request using `OPENAI_API_KEY` from the application set
 uv run --no-sync python -m text_to_sql_agent.scripts.run_embeddings
 ```
 
-This calls the configured embedding model and may incur OpenAI API usage charges.
+This calls the configured embedding model and may incur OpenAI API usage charges. An OpenAI API key is not required for database migrations or application settings that do not use an OpenAI client.
 
 ## Set up PostgreSQL
 
@@ -75,14 +76,16 @@ docker compose exec postgres psql -U postgres -d app1_db \
   -c 'GRANT USAGE ON SCHEMA public TO app1_user; GRANT SELECT ON ALL TABLES IN SCHEMA public TO app1_user;'
 ```
 
-For the optional schema-retrieval experiment, create its table and grant the indexer access:
+For the optional schema-retrieval experiment, apply its Alembic migration using a database owner (or another role with DDL permissions), then grant the indexer access:
 
 ```sh
-docker compose exec -T postgres psql -U postgres -d app1_db \
-  < src/text_to_sql_agent/db_scripts/003_schema_documents.sql
+DATABASE_URL='postgresql+asyncpg://postgres:<password>@localhost:5433/app1_db' \
+  uv run --no-sync alembic upgrade head
 docker compose exec postgres psql -U postgres -d app1_db \
   -c 'GRANT SELECT, INSERT, UPDATE, DELETE ON schema_documents TO app1_user;'
 ```
+
+`alembic revision --autogenerate -m "describe change"` creates future revisions from the SQLAlchemy metadata. Review generated migrations before applying them. The current migration manages `schema_documents` only; retail schema/seed setup remains in the SQL scripts above. If you already created `schema_documents` with the legacy `003_schema_documents.sql`, do not run the migration on that database without reconciling its Alembic version state first.
 
 These are local-development instructions, not a production security setup. The current Compose initializer grants broad database privileges, and the project has not yet established a dedicated read-only execution role. Seed SQL is not idempotent; do not re-run it against a database that already contains the seed rows.
 
@@ -121,7 +124,7 @@ uv run --no-sync pytest -q \
   src/text_to_sql_agent/tests/test_index_schema.py
 ```
 
-The complete suite includes a live schema-retrieval test. It imports application settings and connects to PostgreSQL, so provide `DATABASE_URL` and `OPENAI_API_KEY`, ensure the schema-document table exists, and grant the configured user access before running:
+The complete suite includes a live schema-retrieval test. It imports application settings and connects to PostgreSQL, so provide `DATABASE_URL`, ensure the schema-document table exists, and grant the configured user access before running. `OPENAI_API_KEY` is needed only for tests or operations that create an OpenAI client:
 
 ```sh
 uv run --no-sync pytest -q

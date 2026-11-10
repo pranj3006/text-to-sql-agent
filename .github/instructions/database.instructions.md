@@ -9,7 +9,7 @@ applyTo:
 
 - PostgreSQL 17 is the target baseline unless project configuration says otherwise.
 - Use SQLAlchemy 2.x APIs and explicit session lifecycle management.
-- Current schema artifacts are SQL bootstrap and seed scripts under `src/text_to_sql_agent/db_scripts/`; the repository does not yet configure Alembic. Preserve that convention until a migration setup is deliberately added and documented.
+- The retail schema and seed artifacts remain SQL bootstrap scripts under `src/text_to_sql_agent/db_scripts/`. Alembic is configured for ORM-managed schema changes, including `schema_documents`; use migrations for those changes and keep SQL bootstrap artifacts consistent.
 - Keep database models, persistence logic, and business semantics clearly separated.
 - Use parameterized statements. Never interpolate user text into SQL.
 - Treat LLM-generated SQL as untrusted.

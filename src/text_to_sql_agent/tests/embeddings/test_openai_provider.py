@@ -64,6 +64,21 @@ def test_provider_uses_openai_api_key_from_application_settings(
     openai_client_factory.assert_called_once_with(api_key="test-api-key")
 
 
+def test_provider_requires_api_key_when_creating_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        openai_provider,
+        "app_settings",
+        SimpleNamespace(OPENAI_API_KEY=None),
+    )
+
+    with pytest.raises(RuntimeError, match="OPENAI_API_KEY must be configured"):
+        OpenAIEmbeddingProvider(
+            settings=EmbeddingSettings(model="test-model", dimensions=3)
+        )
+
+
 @pytest.mark.asyncio
 async def test_embed_texts_returns_vectors_in_input_order(
     provider: OpenAIEmbeddingProvider,

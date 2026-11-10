@@ -6,7 +6,9 @@
 
 - `src/text_to_sql_agent/db_scripts/001_schema.sql` defines the current retail schema.
 - `src/text_to_sql_agent/db_scripts/002_seed.sql` defines deterministic sample rows.
-- No SQLAlchemy retail models or Alembic configuration/migrations were found.
+- `src/text_to_sql_agent/app/db/models.py` maps `schema_documents` as a SQLAlchemy model.
+- `migrations/versions/ef3a65e3fc1f_create_schema_documents.py` creates that table and its indexes.
+- Alembic is configured for async PostgreSQL connections; the retail schema and seed data remain SQL bootstrap scripts.
 - `.database/init/01-init.sh` currently creates an application database and user only. Docker Compose does not mount or execute the schema and seed SQL files.
 
 ## Tables and relationships
@@ -37,5 +39,5 @@
 - Make Compose initialization apply the schema and seed files in a repeatable, ordered way.
 - Decide and implement a least-privilege read-only query role; the current init script grants the application user all database privileges.
 - Add a fresh-database smoke test and verify seed row counts and foreign-key/check constraints.
-- Decide deliberately whether to introduce Alembic. A dependency is declared, but no migration environment exists; until configured, the checked-in SQL scripts are the only schema artifacts.
+- Extend the migration strategy to the retail tables before treating Alembic as the complete database setup path.
 - Keep metric, currency, date, and tie-breaking semantics explicit as golden cases are expanded.
