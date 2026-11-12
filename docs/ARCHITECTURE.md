@@ -58,7 +58,7 @@ The baseline should implement the smallest useful deterministic subset of this f
 - Return SQL and evidence for inspection.
 
 ### MCP and LangGraph (later)
-MCP may expose narrowly scoped capabilities with validated contracts and authorization. LangGraph may coordinate stateful execution and bounded recovery. Neither replaces deterministic validation or authorization.
+A standalone MCP server exists in `src/text_to_sql_agent/mcp/server.py` and exposes a schema-search tool. It is an experimental capability, not a connected runtime workflow. LangGraph may coordinate stateful execution and bounded recovery later, but neither replaces deterministic validation or authorization.
 
 ## 4. Trust boundaries
 
@@ -82,9 +82,10 @@ Treat user questions, retrieved schema descriptions/business text, database cont
 - The validator restricts referenced tables/views to the reflected target schema, but does not individually allowlist columns. PostgreSQL read-only transactions and statement timeouts are explicit in the query path; SQLite query-only mode is used in tests. Other target databases require server/driver-level execution limits and permissions.
 - `app/rag/` contains 11 curated schema/business documents, PostgreSQL full-text retrieval, OpenAI embedding generation with pgvector retrieval, and hybrid FTS/vector retrieval using concurrent calls and Reciprocal Rank Fusion. These are standalone experimental components; `app/text_to_sql.py` still supplies static business/schema context and does not call a retriever.
 - The FTS, vector, and hybrid evaluation scripts share a 15-case retrieval benchmark. The evaluation code emits metrics and latency to stdout but does not persist reports. No fresh database-backed benchmark was run for this audit.
+- A standalone MCP server exists at `src/text_to_sql_agent/mcp/server.py` and exposes `search_schema`, but it is not connected to the FastAPI `/query` route and is not part of the application runtime.
 - Several middleware modules still import from the former top-level `app.*` package even though the application now resides under `text_to_sql_agent.*`.
 - The app scaffold uses an async engine for application persistence and centralized settings. Text-to-SQL uses a separate, lazily created synchronous engine; neither URL falls back to the other. These paths have not been exercised end to end.
 - Auth/RBAC, Celery, cache, and telemetry modules are scaffolding; their production behavior is not established by the current tests.
-- No MCP or LangGraph workflow is present.
+- LangGraph is not present.
 
 The benchmark figures reported for the current corpus and the preferred FTS baseline are documented in `EVALUATION.md`; they were not independently reproduced during this audit. This section records code presence and observed wiring only; it is not a security review or runtime verification. See `PROJECT_STATE.md` for test results and `ROADMAP.md` for phase status. `DECISIONS.md` records accepted choices.

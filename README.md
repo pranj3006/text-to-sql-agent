@@ -1,8 +1,19 @@
 # Agentic Text-to-SQL
 
-A Python prototype for translating retail analytics questions into SQL and evaluating the result against reference queries. It is not production-ready: fresh database setup and end-to-end query behavior are unverified, and the implemented FTS/vector/hybrid schema retrievers are experimental components not yet connected to SQL generation.
+A Python prototype for translating retail analytics questions into SQL, executing against a read-only PostgreSQL target, and evaluating the result against independently defined reference queries. The current worktree includes a baseline FastAPI flow, a separate analytics database connection, Alembic-managed `schema_documents`, an experimental full-text/vector/hybrid schema retrieval stack, and a standalone MCP schema-search server.
 
-See [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) for audited implementation status and [docs/ROADMAP.md](docs/ROADMAP.md) for phase goals.
+This repository is not production-ready: database bootstrap, end-to-end query generation, and fresh benchmark validation are still unverified. The implemented retrieval and MCP pieces are useful experimental components, but they are not yet integrated as a proven end-to-end workflow.
+
+See [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) for the audited current status and [docs/ROADMAP.md](docs/ROADMAP.md) for phase goals.
+
+## Current code snapshot
+
+- Baseline SQL generation and validation: implemented in [src/text_to_sql_agent/app/text_to_sql.py](src/text_to_sql_agent/app/text_to_sql.py)
+- Application and query database split: implemented via `DATABASE_URL` and `TEXT_TO_SQL_DATABASE_URL` in [src/text_to_sql_agent/app/core/config.py](src/text_to_sql_agent/app/core/config.py)
+- Schema-document corpus and Alembic migration: present under [src/text_to_sql_agent/app/rag/schema_documents.py](src/text_to_sql_agent/app/rag/schema_documents.py) and [src/text_to_sql_agent/migrations/versions/ef3a65e3fc1f_create_schema_documents.py](src/text_to_sql_agent/migrations/versions/ef3a65e3fc1f_create_schema_documents.py)
+- FTS/vector/hybrid retrieval and metrics: implemented under [src/text_to_sql_agent/app/rag](src/text_to_sql_agent/app/rag) and [src/text_to_sql_agent/evaluation/rag](src/text_to_sql_agent/evaluation/rag)
+- Standalone MCP schema tool: implemented in [src/text_to_sql_agent/mcp/server.py](src/text_to_sql_agent/mcp/server.py); it is not yet integrated into the FastAPI `/query` flow
+- Query-generator golden set: present in [src/text_to_sql_agent/evaluation/query_generator/golden_cases.py](src/text_to_sql_agent/evaluation/query_generator/golden_cases.py), but the second assignment overrides the earlier case list and is not a verified production dataset
 
 ## Local quick start
 
@@ -279,6 +290,8 @@ The repository does not yet integrate retrieval into the SQL-generation flow, so
 ## Project layout
 
 - `src/text_to_sql_agent/app/` — FastAPI entry point, prototype baseline, configuration, database access, and scaffolding.
+- `src/text_to_sql_agent/app/rag/` — schema-document corpus, FTS/vector/hybrid retrieval, and ranking helpers.
+- `src/text_to_sql_agent/mcp/` — standalone experimental MCP server for schema search; not yet connected to the application runtime.
 - `src/text_to_sql_agent/db_scripts/` — retail schema and seed data for `business_db`; `schema_documents` in `app_db` is managed by Alembic.
 - `src/text_to_sql_agent/evaluation/` — reference/baseline runners and experimental retrieval metrics.
 - `src/text_to_sql_agent/tests/` — unit and database-dependent tests.
