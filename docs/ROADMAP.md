@@ -1,6 +1,6 @@
 # Development Roadmap
 
-Progress is updated only when supported by repository and test evidence. Statuses below reflect the repository audit on 2026-11-10; they are not claims of successful end-to-end behavior.
+Progress is updated only when supported by repository and test evidence. Statuses below reflect the repository audit on 2026-11-13; they are not claims of successful end-to-end behavior.
 
 ## Audited status summary
 
@@ -10,7 +10,7 @@ Progress is updated only when supported by repository and test evidence. Statuse
 | 02 — Baseline Text-to-SQL | PROTOTYPE / NOT END-TO-END TESTED | FastAPI route, reflected target schema, dialect-aware generation, SQLGlot validation, and a separate query-database connection exist. The query path was not run end to end. |
 | 03 — Evaluation harness | PARTIAL / NOT RUN | Runners and golden data exist. The imported case list is only five cases due to a second assignment overriding the earlier list. No fresh baseline report was produced. |
 | 04 — Schema RAG | IMPLEMENTED COMPONENTS; EVALUATION REPORTED, NOT REPRODUCED | Curated documents, FTS, OpenAI embeddings, pgvector retrieval, hybrid RRF, and a 15-case benchmark are present. Supplied benchmark figures favor FTS on the current corpus, but no raw report is checked in and results were not reproduced in this audit. Retrieval is not integrated into SQL generation. |
-| 05 — MCP integration | PARTIAL / STANDALONE EXPERIMENT | A schema-search MCP server exists in `src/text_to_sql_agent/mcp/server.py`, but it is not connected to the FastAPI application or validation flow. |
+| 05 — MCP server/tools | IMPLEMENTED; LIVE INTEGRATION NOT VERIFIED | Standalone server registers health, schema search, SQL validation, and read-only execution tools. 14 focused unit tests pass; no live MCP client/database integration or authorization was verified. It is not connected to FastAPI. |
 | 06 — LangGraph workflow | NOT STARTED | No LangGraph integration found. |
 | 07 — Context and token optimization | NOT STARTED | No measurement or implementation found. |
 | 08 — Hardening | SCAFFOLDING ONLY | Auth/RBAC, cache, Celery, and telemetry code exists, but integration and operational behavior are not verified. Compose now provisions a `business_reader` login, but local SQL grants and runtime behavior are not verified and a complete SQL object/column policy is not established. |
@@ -85,10 +85,12 @@ Exit criteria:
 - Reproducible retrieval report for all strategies.
 - Downstream comparison against the stable baseline showing measured impact before claiming RAG improves query quality.
 
-## Phase 05 — MCP integration
-**Current status:** PARTIAL / STANDALONE EXPERIMENT
+## Phase 05 — MCP server/tools
+**Current status:** IMPLEMENTED AS A STANDALONE SERVER; LIVE INTEGRATION NOT VERIFIED
 
-A minimal MCP server for schema search exists in `src/text_to_sql_agent/mcp/server.py`. It is intentionally isolated and not yet integrated with the main workflow or application startup. Additional work should keep the contract narrow, add authorization/bounding checks, and verify end-to-end integration before calling the phase complete.
+The current standalone server registers `health_check`, `search_schema`, `validate_sql_tool`, and `execute_readonly_sql`. Focused tool unit tests pass. Schema search uses the application database; execution reuses the analytics query path. The validation tool currently has a hard-coded PostgreSQL `public` table allowlist, which is not dynamically tied to the configured analytics schema.
+
+The standalone implementation is complete for its current scope, but it is not connected to FastAPI or an agent workflow. Before external use or declaring live integration complete, reconcile the validator's allowlist with target configuration, verify through a real MCP client and databases, and define authentication/authorization and operational limits.
 
 ## Phase 06 — LangGraph workflow
 **Current status:** NOT STARTED

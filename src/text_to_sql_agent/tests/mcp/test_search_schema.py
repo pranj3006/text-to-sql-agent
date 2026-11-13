@@ -1,29 +1,53 @@
+import importlib
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
-# Update this import according to your project structure
-from text_to_sql_agent.mcp import server
+
+@pytest.fixture
+def search_schema_tool(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://app:app@localhost/app_db")
+    monkeypatch.setenv(
+        "TEXT_TO_SQL_DATABASE_URL",
+        "postgresql+asyncpg://app:app@localhost/analytics",
+    )
+
+    import text_to_sql_agent.mcp.tools.search_schema_tool as module
+
+    importlib.reload(module)
+
+    class DummyMCP:
+        def __init__(self):
+            self.tools = {}
+
+        def tool(self):
+            def decorator(func):
+                self.tools[func.__name__] = func
+                return func
+
+            return decorator
+
+    mcp = DummyMCP()
+    module.register_search_schema_tools(mcp)
+
+    return module, mcp.tools["search_schema"]
 
 
 @pytest.fixture
-def mock_retrieve_schema_documents(monkeypatch):
+def mock_retrieve_schema_documents(search_schema_tool, monkeypatch):
+    module, search_schema = search_schema_tool
     mock = AsyncMock()
-
-    monkeypatch.setattr(
-        server,
-        "retrieve_schema_documents",
-        mock,
-    )
-
-    return mock
+    monkeypatch.setattr(module, "retrieve_schema_documents", mock)
+    return search_schema, mock
 
 
 @pytest.mark.asyncio
 async def test_search_schema_returns_matching_documents(
     mock_retrieve_schema_documents,
 ):
+    search_schema, mock_retrieve_schema_documents = mock_retrieve_schema_documents
+
     mock_retrieve_schema_documents.return_value = [
         SimpleNamespace(
             document_id="table_orders",
@@ -39,7 +63,7 @@ async def test_search_schema_returns_matching_documents(
         ),
     ]
 
-    response = await server.search_schema(
+    response = await search_schema(
         query="revenue from orders",
         limit=5,
     )
@@ -49,7 +73,6 @@ async def test_search_schema_returns_matching_documents(
 
     assert response.documents[0].document_id == "table_orders"
     assert response.documents[0].category == "table"
-
     assert response.documents[1].document_id == "rule_recognized_revenue"
 
     mock_retrieve_schema_documents.assert_awaited_once_with(
@@ -62,9 +85,10 @@ async def test_search_schema_returns_matching_documents(
 async def test_search_schema_strips_query_whitespace(
     mock_retrieve_schema_documents,
 ):
+    search_schema, mock_retrieve_schema_documents = mock_retrieve_schema_documents
     mock_retrieve_schema_documents.return_value = []
 
-    response = await server.search_schema(
+    response = await search_schema(
         query="  revenue from orders  ",
         limit=3,
     )
@@ -81,9 +105,10 @@ async def test_search_schema_strips_query_whitespace(
 async def test_search_schema_returns_empty_results(
     mock_retrieve_schema_documents,
 ):
+    search_schema, mock_retrieve_schema_documents = mock_retrieve_schema_documents
     mock_retrieve_schema_documents.return_value = []
 
-    response = await server.search_schema(
+    response = await search_schema(
         query="unknown business terminology",
     )
 
@@ -95,9 +120,10 @@ async def test_search_schema_returns_empty_results(
 async def test_search_schema_respects_limit(
     mock_retrieve_schema_documents,
 ):
+    search_schema, mock_retrieve_schema_documents = mock_retrieve_schema_documents
     mock_retrieve_schema_documents.return_value = []
 
-    await server.search_schema(
+    await search_schema(
         query="customer orders",
         limit=3,
     )
@@ -112,12 +138,14 @@ async def test_search_schema_respects_limit(
 async def test_search_schema_rejects_whitespace_query(
     mock_retrieve_schema_documents,
 ):
-    response = await server.search_schema(
+    search_schema, mock_retrieve_schema_documents = mock_retrieve_schema_documents
+
+    response = await search_schema(
         query="   ",
     )
 
-    assert isinstance(response, server.CallToolResult)
     assert response.is_error is True
+    assert response.content[0].text == "Error: 'query' cannot be an empty string."
 
     mock_retrieve_schema_documents.assert_not_awaited()
 
@@ -126,11 +154,12 @@ async def test_search_schema_rejects_whitespace_query(
 async def test_search_schema_propagates_retrieval_error(
     mock_retrieve_schema_documents,
 ):
+    search_schema, mock_retrieve_schema_documents = mock_retrieve_schema_documents
     mock_retrieve_schema_documents.side_effect = RuntimeError(
         "Database connection failed"
     )
 
     with pytest.raises(RuntimeError, match="Database connection failed"):
-        await server.search_schema(
+        await search_schema(
             query="customer orders",
         )

@@ -57,8 +57,8 @@ The baseline should implement the smallest useful deterministic subset of this f
 - Ground natural-language claims in returned rows and metadata.
 - Return SQL and evidence for inspection.
 
-### MCP and LangGraph (later)
-A standalone MCP server exists in `src/text_to_sql_agent/mcp/server.py` and exposes a schema-search tool. It is an experimental capability, not a connected runtime workflow. LangGraph may coordinate stateful execution and bounded recovery later, but neither replaces deterministic validation or authorization.
+### MCP and LangGraph
+The standalone MCP server in `src/text_to_sql_agent/mcp/server.py` registers `health_check`, `search_schema`, `validate_sql_tool`, and `execute_readonly_sql`. Schema search uses the application database; SQL execution reuses the analytics query path. The server is independent of FastAPI startup and is not an integrated agent workflow. Its standalone SQL validator currently uses a hard-coded PostgreSQL allowlist (`customers`, `products`, `orders`, `order_items`) in `public`, whereas execution reflects and validates against the configured target database. Unit tests cover the tool functions, but a real MCP client/database path and authorization are not verified. LangGraph is not present.
 
 ## 4. Trust boundaries
 
@@ -74,7 +74,7 @@ Treat user questions, retrieved schema descriptions/business text, database cont
 - Clear failure modes
 - Observable execution without leaking sensitive data
 
-## 6. Observed implementation (2026-11-10)
+## 6. Observed implementation (2026-11-13)
 
 - `app/main.py` defines a FastAPI `/health` endpoint and synchronous `/query` handler.
 - `app/text_to_sql.py` uses a dedicated synchronous SQLAlchemy engine configured by `TEXT_TO_SQL_DATABASE_URL`; it reflects the target database's default or configured schema, prompts using its SQL dialect, restricts referenced tables/views to the reflected schema, and applies a row cap. PostgreSQL execution additionally uses a read-only transaction and statement timeout. The FastAPI application's async persistence engine remains configured by `DATABASE_URL`.
@@ -82,7 +82,7 @@ Treat user questions, retrieved schema descriptions/business text, database cont
 - The validator restricts referenced tables/views to the reflected target schema, but does not individually allowlist columns. PostgreSQL read-only transactions and statement timeouts are explicit in the query path; SQLite query-only mode is used in tests. Other target databases require server/driver-level execution limits and permissions.
 - `app/rag/` contains 11 curated schema/business documents, PostgreSQL full-text retrieval, OpenAI embedding generation with pgvector retrieval, and hybrid FTS/vector retrieval using concurrent calls and Reciprocal Rank Fusion. These are standalone experimental components; `app/text_to_sql.py` still supplies static business/schema context and does not call a retriever.
 - The FTS, vector, and hybrid evaluation scripts share a 15-case retrieval benchmark. The evaluation code emits metrics and latency to stdout but does not persist reports. No fresh database-backed benchmark was run for this audit.
-- A standalone MCP server exists at `src/text_to_sql_agent/mcp/server.py` and exposes `search_schema`, but it is not connected to the FastAPI `/query` route and is not part of the application runtime.
+- The standalone MCP server registers `health_check`, `search_schema`, `validate_sql_tool`, and `execute_readonly_sql`. The validation tool uses a fixed PostgreSQL `public` object allowlist; execution delegates to the shared query execution function, which reflects the configured target schema and applies runtime validation/limits. Focused tool unit tests pass, but MCP client interoperability and live database behavior have not been verified. The server is not connected to the FastAPI `/query` route.
 - Several middleware modules still import from the former top-level `app.*` package even though the application now resides under `text_to_sql_agent.*`.
 - The app scaffold uses an async engine for application persistence and centralized settings. Text-to-SQL uses a separate, lazily created synchronous engine; neither URL falls back to the other. These paths have not been exercised end to end.
 - Auth/RBAC, Celery, cache, and telemetry modules are scaffolding; their production behavior is not established by the current tests.

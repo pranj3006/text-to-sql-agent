@@ -1,6 +1,6 @@
 # Agentic Text-to-SQL
 
-A Python prototype for translating retail analytics questions into SQL, executing against a read-only PostgreSQL target, and evaluating the result against independently defined reference queries. The current worktree includes a baseline FastAPI flow, a separate analytics database connection, Alembic-managed `schema_documents`, an experimental full-text/vector/hybrid schema retrieval stack, and a standalone MCP schema-search server.
+A Python prototype for translating retail analytics questions into SQL, executing against a read-only PostgreSQL target, and evaluating the result against independently defined reference queries. The current worktree includes a baseline FastAPI flow, a separate analytics database connection, Alembic-managed `schema_documents`, an experimental full-text/vector/hybrid schema retrieval stack, and a standalone MCP server with schema search, SQL validation, and read-only SQL execution tools.
 
 This repository is not production-ready: database bootstrap, end-to-end query generation, and fresh benchmark validation are still unverified. The implemented retrieval and MCP pieces are useful experimental components, but they are not yet integrated as a proven end-to-end workflow.
 
@@ -12,7 +12,7 @@ See [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) for the audited current statu
 - Application and query database split: implemented via `DATABASE_URL` and `TEXT_TO_SQL_DATABASE_URL` in [src/text_to_sql_agent/app/core/config.py](src/text_to_sql_agent/app/core/config.py)
 - Schema-document corpus and Alembic migration: present under [src/text_to_sql_agent/app/rag/schema_documents.py](src/text_to_sql_agent/app/rag/schema_documents.py) and [src/text_to_sql_agent/migrations/versions/ef3a65e3fc1f_create_schema_documents.py](src/text_to_sql_agent/migrations/versions/ef3a65e3fc1f_create_schema_documents.py)
 - FTS/vector/hybrid retrieval and metrics: implemented under [src/text_to_sql_agent/app/rag](src/text_to_sql_agent/app/rag) and [src/text_to_sql_agent/evaluation/rag](src/text_to_sql_agent/evaluation/rag)
-- Standalone MCP schema tool: implemented in [src/text_to_sql_agent/mcp/server.py](src/text_to_sql_agent/mcp/server.py); it is not yet integrated into the FastAPI `/query` flow
+- Standalone MCP server and tools: [server.py](src/text_to_sql_agent/mcp/server.py) registers `health_check`, `search_schema`, `validate_sql_tool`, and `execute_readonly_sql`; this server is not integrated into the FastAPI `/query` flow
 - Query-generator golden set: present in [src/text_to_sql_agent/evaluation/query_generator/golden_cases.py](src/text_to_sql_agent/evaluation/query_generator/golden_cases.py), but the second assignment overrides the earlier case list and is not a verified production dataset
 
 ## Local quick start
@@ -76,6 +76,23 @@ Run these steps from the repository root. You need Python 3.12, [`uv`](https://d
    ```
 
 The API and `/query` flow have not been verified end to end; see the setup details and known limitations below before interpreting a successful startup as proof that query generation works.
+
+## Run the standalone MCP server
+
+The MCP server is a separate process, not part of FastAPI startup. From the repository root, configure `DATABASE_URL` for schema-document search and `TEXT_TO_SQL_DATABASE_URL` for SQL validation/execution, then run:
+
+```sh
+uv run --no-sync python -m text_to_sql_agent.mcp.server
+```
+
+It registers four tools:
+
+- `health_check` reports server status.
+- `search_schema` runs PostgreSQL full-text search over `schema_documents`; `query` is limited to 500 characters and `limit` is 1–10 (default 5).
+- `validate_sql_tool` parses and normalizes a read-only PostgreSQL query. Its allowed objects are currently hard-coded to `customers`, `products`, `orders`, and `order_items` in schema `public`.
+- `execute_readonly_sql` delegates to the Text-to-SQL execution path, which reflects objects from the configured analytics database and applies its SQL validation and execution controls.
+
+The tools have unit-test coverage, but the server has not been verified with a real MCP client, a live database, or an authorization layer. The validation tool's fixed object list can differ from the objects reflected by execution; keep this limitation in mind when configuring a target schema. See [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) for the audited status.
 
 ## Prerequisites
 
@@ -291,7 +308,7 @@ The repository does not yet integrate retrieval into the SQL-generation flow, so
 
 - `src/text_to_sql_agent/app/` — FastAPI entry point, prototype baseline, configuration, database access, and scaffolding.
 - `src/text_to_sql_agent/app/rag/` — schema-document corpus, FTS/vector/hybrid retrieval, and ranking helpers.
-- `src/text_to_sql_agent/mcp/` — standalone experimental MCP server for schema search; not yet connected to the application runtime.
+- `src/text_to_sql_agent/mcp/` — standalone MCP server and schema-search, SQL-validation, and read-only SQL-execution tools; not connected to FastAPI runtime.
 - `src/text_to_sql_agent/db_scripts/` — retail schema and seed data for `business_db`; `schema_documents` in `app_db` is managed by Alembic.
 - `src/text_to_sql_agent/evaluation/` — reference/baseline runners and experimental retrieval metrics.
 - `src/text_to_sql_agent/tests/` — unit and database-dependent tests.
