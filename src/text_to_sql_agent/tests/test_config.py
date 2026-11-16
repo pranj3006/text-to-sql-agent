@@ -1,7 +1,21 @@
 import pytest
 from pydantic import ValidationError
 
-from text_to_sql_agent.app.core.config import Settings
+from text_to_sql_agent.app.core.config import (
+    PACKAGE_ENV_FILE,
+    PROJECT_ROOT_ENV_FILE,
+    Settings,
+)
+
+
+def test_settings_env_file_is_anchored_to_project_root():
+    assert PROJECT_ROOT_ENV_FILE.is_absolute()
+    assert PROJECT_ROOT_ENV_FILE.name == ".env"
+    assert PROJECT_ROOT_ENV_FILE.parent.name == "text-to-sql-agent"
+    assert Settings.model_config["env_file"] == (
+        PACKAGE_ENV_FILE,
+        PROJECT_ROOT_ENV_FILE,
+    )
 
 
 def test_settings_load_database_url_without_openai_api_key(

@@ -4,14 +4,22 @@ Single source of truth for all env-driven settings - never read os.environ
 anywhere else in the codebase, import `settings` from here instead.
 """
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+PACKAGE_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT_ENV_FILE = PACKAGE_ROOT.parents[1] / ".env"
+PACKAGE_ENV_FILE = PACKAGE_ROOT / ".env"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=(PACKAGE_ENV_FILE, PROJECT_ROOT_ENV_FILE),
+        env_file_encoding="utf-8",
+        extra="ignore",
     )
 
     # --- App ---

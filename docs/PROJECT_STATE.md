@@ -2,7 +2,7 @@
 
 **Audited:** 2026-11-13
 
-**Overall status:** Prototype. The baseline workflow, schema-document corpus, retrieval benchmark components, and standalone MCP server/tool implementation are present. Fresh database bootstrap, end-to-end query verification, and live MCP client/database behavior remain unverified.
+**Overall status:** Prototype. The baseline workflow, schema-document corpus, retrieval benchmark components, and standalone MCP server/tool implementation are present. Fresh database bootstrap, end-to-end query verification, and database-backed MCP behavior remain unverified.
 
 **Current focus:** Validate the local application/database split, make startup and the retail schema seed reproducible, then rerun the baseline and retrieval evaluations before claiming phase completion.
 
@@ -26,13 +26,13 @@ Translate natural-language retail analytics questions into safe SQL, execute aga
 | Schema document corpus | 11 curated table, relationship, and business-rule documents exist, and Alembic manages `schema_documents` in `app_db`. | Schema-document and migration-related unit tests exist. | Fresh migration/indexing and live permissions have not been verified. |
 | Schema retrieval | PostgreSQL FTS, OpenAI embedding generation, pgvector vector retrieval, and hybrid FTS/vector retrieval with RRF are implemented under `app/rag/`. | Unit tests cover RRF, hybrid behavior, retrieval metrics, and benchmark case integrity. | These are standalone experimental components; the SQL-generation flow does not currently call them. |
 | Retrieval evaluation | Three evaluators share 15 cases (R01–R15) and report Recall@3/5/10, Precision@5, MRR@10, nDCG@5, and latency. | Benchmark definitions and metrics are covered by unit tests. | Evaluators print to stdout and do not persist a benchmark report. The live benchmark was not rerun in this audit. |
-| MCP server and tools | Standalone server registers `health_check`, `search_schema`, `validate_sql_tool`, and `execute_readonly_sql`. | 14 focused unit tests pass for tool behavior using a dummy MCP registrar and mocked retrieval/execution dependencies. | No live MCP client/protocol or database integration was verified. The server is separate from FastAPI startup. The validation tool uses a hard-coded PostgreSQL/public object allowlist; execution separately reflects and validates against the configured analytics database. |
+| MCP server and tools | Standalone server registers `health_check`, `search_schema`, `validate_sql_tool`, and `execute_readonly_sql`. | 27 focused tests pass: tool tests with mocked retrieval/execution, client unit tests, and a stdio integration smoke test against the real standalone server. | The stdio test verifies tool discovery, health checks, and SQL validation only; database-backed behavior and authorization remain unverified. The server is separate from FastAPI startup. The validation tool uses a hard-coded PostgreSQL/public object allowlist; execution separately reflects and validates against the configured analytics database. |
 | LangGraph | No integration found. | — | Not started. |
 | Hardening | Auth/RBAC, cache, Celery, and telemetry scaffolding exists. | Not verified as a complete runtime path. | No production readiness or security claim is supported. |
 
 ## Recent code changes reviewed
 
-- The current worktree expands `src/text_to_sql_agent/mcp/server.py` to register three tool modules in addition to its health check: schema search, SQL validation, and read-only SQL execution. Each tool has focused unit tests under `src/text_to_sql_agent/tests/mcp/`.
+- The current worktree's `src/text_to_sql_agent/mcp/mcp_server.py` registers three tool modules in addition to its health check: schema search, SQL validation, and read-only SQL execution. Each tool has focused unit tests under `src/text_to_sql_agent/tests/mcp/`.
 - The MCP server remains standalone: it is not started by FastAPI and its tools do not form an integrated agent workflow. The SQL execution tool reuses the existing Text-to-SQL execution path; the standalone validation tool has its own fixed table/schema allowlist.
 - The retrieval benchmark in `src/text_to_sql_agent/evaluation/rag/retrieval_cases.py` defines 15 cases and uses the same corpus as the RAG/document retrieval components.
 - Hybrid retrieval with Reciprocal Rank Fusion and focused tests are implemented under `src/text_to_sql_agent/app/rag/`, `src/text_to_sql_agent/evaluation/rag/`, and `src/text_to_sql_agent/tests/rag/`.
@@ -47,7 +47,7 @@ At the code level, the current retrieval stack favors FTS as the simplest baseli
 
 The MCP test command below was run for this documentation update:
 
-- `DATABASE_URL='postgresql+asyncpg://localhost/app_db' TEXT_TO_SQL_DATABASE_URL='postgresql+psycopg://localhost/business_db' OPENAI_API_KEY='' uv run --no-sync pytest -q src/text_to_sql_agent/tests/mcp` — **14 passed** in 2.17s. These are unit tests; retrieval/database and execution dependencies are mocked.
+- `DATABASE_URL='postgresql+asyncpg://localhost/app_db' TEXT_TO_SQL_DATABASE_URL='postgresql+psycopg://localhost/business_db' OPENAI_API_KEY='' uv run --no-sync pytest -q src/text_to_sql_agent/tests/mcp` — **27 passed** in 4.43s. Includes a real stdio client/server smoke test for tool discovery, health checks, and SQL validation. Database-backed tools were not called.
 - `git diff --check` — passed.
 
 The following results were recorded in the 2026-11-12 audit and were not rerun here:

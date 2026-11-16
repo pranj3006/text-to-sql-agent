@@ -12,7 +12,7 @@ See [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) for the audited current statu
 - Application and query database split: implemented via `DATABASE_URL` and `TEXT_TO_SQL_DATABASE_URL` in [src/text_to_sql_agent/app/core/config.py](src/text_to_sql_agent/app/core/config.py)
 - Schema-document corpus and Alembic migration: present under [src/text_to_sql_agent/app/rag/schema_documents.py](src/text_to_sql_agent/app/rag/schema_documents.py) and [src/text_to_sql_agent/migrations/versions/ef3a65e3fc1f_create_schema_documents.py](src/text_to_sql_agent/migrations/versions/ef3a65e3fc1f_create_schema_documents.py)
 - FTS/vector/hybrid retrieval and metrics: implemented under [src/text_to_sql_agent/app/rag](src/text_to_sql_agent/app/rag) and [src/text_to_sql_agent/evaluation/rag](src/text_to_sql_agent/evaluation/rag)
-- Standalone MCP server and tools: [server.py](src/text_to_sql_agent/mcp/server.py) registers `health_check`, `search_schema`, `validate_sql_tool`, and `execute_readonly_sql`; this server is not integrated into the FastAPI `/query` flow
+- Standalone MCP server and tools: [mcp_server.py](src/text_to_sql_agent/mcp/mcp_server.py) registers `health_check`, `search_schema`, `validate_sql_tool`, and `execute_readonly_sql`; this server is not integrated into the FastAPI `/query` flow
 - Query-generator golden set: present in [src/text_to_sql_agent/evaluation/query_generator/golden_cases.py](src/text_to_sql_agent/evaluation/query_generator/golden_cases.py), but the second assignment overrides the earlier case list and is not a verified production dataset
 
 ## Local quick start
@@ -79,10 +79,11 @@ The API and `/query` flow have not been verified end to end; see the setup detai
 
 ## Run the standalone MCP server
 
-The MCP server is a separate process, not part of FastAPI startup. From the repository root, configure `DATABASE_URL` for schema-document search and `TEXT_TO_SQL_DATABASE_URL` for SQL validation/execution, then run:
+The MCP server is a separate process, not part of FastAPI startup. It uses the same centralized settings as the FastAPI app, loading `.env` from the repository root or falling back to `src/text_to_sql_agent/.env`. Configure `DATABASE_URL` for schema-document search and `TEXT_TO_SQL_DATABASE_URL` for SQL validation/execution, then run the MCP Inspector from `src/text_to_sql_agent`:
 
 ```sh
-uv run --no-sync python -m text_to_sql_agent.mcp.server
+cd src/text_to_sql_agent
+uv run mcp dev mcp/mcp_server.py
 ```
 
 It registers four tools:
@@ -98,6 +99,7 @@ The tools have unit-test coverage, but the server has not been verified with a r
 
 - Python 3.12
 - [`uv`](https://docs.astral.sh/uv/)
+- Node.js and npm on `PATH` to run `mcp dev` with the MCP Inspector
 - Docker with the Compose plugin, for PostgreSQL 17 with pgvector
 - An OpenAI API key for baseline query generation (the unit tests and reference-query evaluation do not call the model)
 
