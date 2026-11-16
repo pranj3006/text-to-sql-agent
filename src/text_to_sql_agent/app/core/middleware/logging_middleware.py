@@ -13,7 +13,11 @@ import uuid
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
-from app.core.logging import correlation_id_ctx, get_logger, user_id_ctx
+from text_to_sql_agent.app.core.logging import (
+    correlation_id_ctx,
+    get_logger,
+    user_id_ctx,
+)
 
 logger = get_logger("app.access")
 

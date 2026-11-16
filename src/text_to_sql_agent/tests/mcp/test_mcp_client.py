@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock
 import pytest
 from mcp import StdioServerParameters
 
-import text_to_sql_agent.mcp.mcp_client_module as mcp_client_module
-from text_to_sql_agent.mcp.mcp_client_module import (
+import text_to_sql_agent.mcp_app.mcp_client_module as mcp_client_module
+from text_to_sql_agent.mcp_app.mcp_client_module import (
     MCPClient,
     MCPConnectionError,
     MCPToolError,

@@ -2,12 +2,12 @@ import asyncio
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-from text_to_sql_agent.mcp.mcp_client_module import MCPClient, MCPConnectionError
+from text_to_sql_agent.mcp_app.mcp_client_module import MCPClient, MCPConnectionError
 
 async def main() -> None:
     server_params = StdioServerParameters(
         command="uv",
-        args=["run","python", "mcp/mcp_server.py"],
+        args=["run","python", "mcp_app/mcp_server.py"],
     )
 
     async with MCPClient(server_params) as client:

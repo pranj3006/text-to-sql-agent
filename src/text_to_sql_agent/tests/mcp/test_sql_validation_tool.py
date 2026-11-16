@@ -9,7 +9,7 @@ def sql_validation_tool(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/app_db")
     monkeypatch.setenv("TEXT_TO_SQL_DATABASE_URL", "postgresql://localhost/analytics")
 
-    import text_to_sql_agent.mcp.tools.sql_validation_tool as module
+    import text_to_sql_agent.mcp_app.tools.sql_validation_tool as module
 
     importlib.reload(module)
 

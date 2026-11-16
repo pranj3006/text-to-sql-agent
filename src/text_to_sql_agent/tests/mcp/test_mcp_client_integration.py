@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from mcp import StdioServerParameters
 
-from text_to_sql_agent.mcp.mcp_client_module import MCPClient
+from text_to_sql_agent.mcp_app.mcp_client_module import MCPClient
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -15,7 +15,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 async def test_client_communicates_with_standalone_server_over_stdio():
     server_params = StdioServerParameters(
         command=sys.executable,
-        args=["-m", "text_to_sql_agent.mcp.mcp_server"],
+        args=["-m", "text_to_sql_agent.mcp_app.mcp_server"],
         cwd=PROJECT_ROOT,
         env={
             **os.environ,

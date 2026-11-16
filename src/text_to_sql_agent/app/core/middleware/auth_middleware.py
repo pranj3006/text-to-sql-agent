@@ -18,9 +18,9 @@ route that actually requires auth still enforces it via its dependency.
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
-from app.core.logging import get_logger, user_id_ctx
-from app.core.security import validate_token
-from app.services.cache_service import get_cache_service
+from text_to_sql_agent.app.core.logging import get_logger, user_id_ctx
+from text_to_sql_agent.app.core.security import validate_token
+from text_to_sql_agent.app.services.cache_service import get_cache_service
 
 logger = get_logger(__name__)
 

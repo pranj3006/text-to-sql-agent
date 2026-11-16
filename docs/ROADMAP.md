@@ -1,6 +1,6 @@
 # Development Roadmap
 
-Progress is updated only when supported by repository and test evidence. Statuses below reflect the repository audit on 2026-11-13; they are not claims of successful end-to-end behavior.
+Progress is updated only when supported by repository and test evidence. Statuses below reflect the repository audit on 2026-11-16; they are not claims of successful end-to-end behavior.
 
 ## Audited status summary
 
@@ -10,7 +10,7 @@ Progress is updated only when supported by repository and test evidence. Statuse
 | 02 — Baseline Text-to-SQL | PROTOTYPE / NOT END-TO-END TESTED | FastAPI route, reflected target schema, dialect-aware generation, SQLGlot validation, and a separate query-database connection exist. The query path was not run end to end. |
 | 03 — Evaluation harness | PARTIAL / NOT RUN | Runners and golden data exist. The imported case list is only five cases due to a second assignment overriding the earlier list. No fresh baseline report was produced. |
 | 04 — Schema RAG | IMPLEMENTED COMPONENTS; EVALUATION REPORTED, NOT REPRODUCED | Curated documents, FTS, OpenAI embeddings, pgvector retrieval, hybrid RRF, and a 15-case benchmark are present. Supplied benchmark figures favor FTS on the current corpus, but no raw report is checked in and results were not reproduced in this audit. Retrieval is not integrated into SQL generation. |
-| 05 — MCP server/tools | IMPLEMENTED; DATABASE INTEGRATION NOT VERIFIED | Standalone server registers health, schema search, SQL validation, and read-only execution tools. 27 focused tests pass, including client unit tests and a client/server stdio smoke test; database behavior and authorization remain unverified. It is not connected to FastAPI. |
+| 05 — MCP server/tools | IMPLEMENTED; DATABASE INTEGRATION NOT VERIFIED | Server registers health, schema search, SQL validation, and read-only execution tools. FastAPI starts one lifespan-scoped MCP client and exposes tool-list and schema-search endpoints. API lifecycle/endpoint tests and standalone client/server tests pass; database behavior and authorization remain unverified. |
 | 06 — LangGraph workflow | NOT STARTED | No LangGraph integration found. |
 | 07 — Context and token optimization | NOT STARTED | No measurement or implementation found. |
 | 08 — Hardening | SCAFFOLDING ONLY | Auth/RBAC, cache, Celery, and telemetry code exists, but integration and operational behavior are not verified. Compose now provisions a `business_reader` login, but local SQL grants and runtime behavior are not verified and a complete SQL object/column policy is not established. |
@@ -86,11 +86,11 @@ Exit criteria:
 - Downstream comparison against the stable baseline showing measured impact before claiming RAG improves query quality.
 
 ## Phase 05 — MCP server/tools
-**Current status:** IMPLEMENTED AS A STANDALONE SERVER; DATABASE INTEGRATION NOT VERIFIED
+**Current status:** SERVER AND FASTAPI CLIENT INTEGRATION IMPLEMENTED; DATABASE INTEGRATION NOT VERIFIED
 
-The current standalone server registers `health_check`, `search_schema`, `validate_sql_tool`, and `execute_readonly_sql`. Focused tool and client unit tests pass, and a real MCP client has completed a stdio smoke test against the standalone server for tool discovery, health checks, and SQL validation. This does not exercise database-backed tools. Schema search uses the application database; execution reuses the analytics query path. The validation tool currently has a hard-coded PostgreSQL `public` table allowlist, which is not dynamically tied to the configured analytics schema.
+The server registers `health_check`, `search_schema`, `validate_sql_tool`, and `execute_readonly_sql`. FastAPI starts one client in its lifespan, publishes it at `app.state.mcp_client`, and uses it for `/mcp/tools` and `/mcp/schema-search`; startup errors fail the application startup and shutdown closes the client. Lifecycle and endpoint tests use a fake MCP client. The standalone MCP suite also includes a real stdio client/server smoke test for discovery, health checks, and SQL validation. None of these tests exercises database-backed tools. Schema search uses the application database; execution reuses the analytics query path. The validation tool currently has a hard-coded PostgreSQL `public` table allowlist, which is not dynamically tied to the configured analytics schema.
 
-The standalone implementation is complete for its current scope, but it is not connected to FastAPI or an agent workflow. Before external use or declaring database integration complete, reconcile the validator's allowlist with target configuration, verify through configured databases, and define authentication/authorization and operational limits.
+The MCP client is not connected to the `/query` agent workflow. Before external use or declaring database integration complete, reconcile the validator's allowlist with target configuration, verify through configured databases, and define authentication/authorization and operational limits.
 
 ## Phase 06 — LangGraph workflow
 **Current status:** NOT STARTED

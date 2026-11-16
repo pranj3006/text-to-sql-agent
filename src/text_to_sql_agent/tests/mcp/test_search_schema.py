@@ -13,7 +13,7 @@ def search_schema_tool(monkeypatch):
         "postgresql+asyncpg://app:app@localhost/analytics",
     )
 
-    import text_to_sql_agent.mcp.tools.search_schema_tool as module
+    import text_to_sql_agent.mcp_app.tools.search_schema_tool as module
 
     importlib.reload(module)
 

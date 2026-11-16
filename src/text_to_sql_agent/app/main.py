@@ -1,8 +1,14 @@
 
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+import sys
 from contextlib import asynccontextmanager
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from mcp import StdioServerParameters
+from pydantic import BaseModel, Field
+
+from text_to_sql_agent.app.deps import get_mcp_client
 from text_to_sql_agent.app.text_to_sql import (
     answer_question,
     dispose_query_database_engine,
@@ -16,6 +22,7 @@ from text_to_sql_agent.app.core.middleware.monitoring_middleware import Monitori
 from text_to_sql_agent.app.core.otel import configure_otel
 from text_to_sql_agent.app.db.init_pgvector import ensure_pgvector_extension
 from text_to_sql_agent.app.db.session import engine
+from text_to_sql_agent.mcp_app.mcp_client_module import MCPClient
 
 configure_logging()
 logger = get_logger(__name__)
@@ -24,13 +31,29 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("app_startup", extra={"env": settings.APP_ENV})
+    app.state.mcp_client = None
+
+    server_params = StdioServerParameters(
+        command=sys.executable,
+        args=["-m", "text_to_sql_agent.mcp_app.mcp_server"],
+    )
+
     try:
         await ensure_pgvector_extension(engine)
-        yield
+
+        async with MCPClient(server_params) as mcp_client:
+            app.state.mcp_client = mcp_client
+            logger.info("mcp_client_started")
+
+            yield
+    except Exception:
+        logger.exception("app_lifecycle_failure")
+        raise
     finally:
-        logger.info("app_shutdown")
         dispose_query_database_engine()
         await engine.dispose()
+        app.state.mcp_client = None
+        logger.info("app_shutdown")
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -58,6 +81,9 @@ class QuestionRequest(BaseModel):
     question: str = Field(min_length=3, max_length=1000)
 
 
+router = APIRouter()
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -77,3 +103,34 @@ def query(request: QuestionRequest):
             status_code=500,
             detail="Unable to generate or execute the query.",
         ) from exc
+
+
+@router.get("/mcp/tools")
+async def get_mcp_tools(
+    client: Annotated[MCPClient, Depends(get_mcp_client)],
+):
+    tools = await client.list_tools()
+
+    return {
+        "tools": sorted(tools),
+        "count": len(tools),
+    }
+
+
+@router.get("/mcp/schema-search")
+async def search_schema(
+    client: Annotated[MCPClient, Depends(get_mcp_client)],
+    query: str = Query(min_length=1, max_length=500),
+):
+    result = await client.call_tool(
+        "search_schema",
+        {
+            "query": query,
+            "limit": 5,
+        },
+    )
+
+    return result.structured_content
+
+
+app.include_router(router)
