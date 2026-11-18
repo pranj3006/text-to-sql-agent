@@ -25,9 +25,12 @@ from text_to_sql_agent.app.core.config import settings
 from text_to_sql_agent.app.core.logging import get_logger
 
 logger = get_logger(__name__)
+_tracer_provider: TracerProvider | None = None
 
 
 def configure_otel(app: FastAPI, db_engine=None) -> None:
+    global _tracer_provider
+
     if not settings.OTEL_ENABLED:
         logger.info("otel_disabled", extra={"reason": "OTEL_ENABLED=false"})
         return
@@ -42,10 +45,20 @@ def configure_otel(app: FastAPI, db_engine=None) -> None:
 
     provider.add_span_processor(BatchSpanProcessor(exporter))
     trace.set_tracer_provider(provider)
+    _tracer_provider = provider
 
     FastAPIInstrumentor.instrument_app(app)
     if db_engine is not None:
         SQLAlchemyInstrumentor().instrument(engine=db_engine.sync_engine)
+
+
+def shutdown_otel() -> None:
+    """Flush and stop the application's background span exporter."""
+    global _tracer_provider
+
+    if _tracer_provider is not None:
+        _tracer_provider.shutdown()
+        _tracer_provider = None
 
 
 def get_tracer(name: str):

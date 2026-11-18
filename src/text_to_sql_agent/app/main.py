@@ -19,7 +19,7 @@ from text_to_sql_agent.app.core.logging import configure_logging, get_logger
 from text_to_sql_agent.app.core.middleware.auth_middleware import AuthContextMiddleware
 from text_to_sql_agent.app.core.middleware.logging_middleware import RequestContextMiddleware
 from text_to_sql_agent.app.core.middleware.monitoring_middleware import MonitoringMiddleware, get_metrics_summary
-from text_to_sql_agent.app.core.otel import configure_otel
+from text_to_sql_agent.app.core.otel import configure_otel, shutdown_otel
 from text_to_sql_agent.app.db.init_pgvector import ensure_pgvector_extension
 from text_to_sql_agent.app.db.session import engine
 from text_to_sql_agent.mcp_app.mcp_client_module import MCPClient
@@ -50,10 +50,13 @@ async def lifespan(app: FastAPI):
         logger.exception("app_lifecycle_failure")
         raise
     finally:
-        dispose_query_database_engine()
-        await engine.dispose()
-        app.state.mcp_client = None
-        logger.info("app_shutdown")
+        try:
+            dispose_query_database_engine()
+            await engine.dispose()
+        finally:
+            app.state.mcp_client = None
+            shutdown_otel()
+            logger.info("app_shutdown")
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -131,6 +134,41 @@ async def search_schema(
     )
 
     return result.structured_content
+
+
+
+@router.get("/mcp/query")
+async def mcp_query(
+    client: Annotated[MCPClient, Depends(get_mcp_client)],
+    request: QuestionRequest
+    ):
+
+    result = await client.call_tool(
+        "search_schema",
+        {
+            "query": query,
+            "limit": 5,
+        },
+    )
+
+    return result.structured_content
+
+
+    try:
+        result = await answer_question_mcp(
+                    client=client,
+                    query=request.question)
+        return result.structured_content
+    except ValueError as exc:
+        print("exc",exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        # Log the actual exception in a real application.
+        print("exc",exc)
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to generate or execute the query.",
+        ) from exc
 
 
 app.include_router(router)

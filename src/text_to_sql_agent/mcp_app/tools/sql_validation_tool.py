@@ -3,7 +3,7 @@ from typing import Annotated
 from mcp.server.mcpserver import MCPServer
 from pydantic import BaseModel, Field
 
-from text_to_sql_agent.app.text_to_sql import validate_sql
+from text_to_sql_agent.app.text_to_sql_v2 import validate_sql
 
 # Configure these using your existing database/schema configuration.
 ALLOWED_TABLES = frozenset({

@@ -30,6 +30,7 @@ def lifecycle_mocks(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     ensure_pgvector_extension = AsyncMock()
     dispose_query_database_engine = Mock()
     dispose_app_database_engine = AsyncMock()
+    shutdown_otel = Mock()
 
     monkeypatch.setattr(main, "MCPClient", lambda _server_params: client)
     monkeypatch.setattr(
@@ -47,12 +48,14 @@ def lifecycle_mocks(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
         "dispose",
         dispose_app_database_engine,
     )
+    monkeypatch.setattr(main, "shutdown_otel", shutdown_otel)
 
     return SimpleNamespace(
         client=client,
         ensure_pgvector_extension=ensure_pgvector_extension,
         dispose_query_database_engine=dispose_query_database_engine,
         dispose_app_database_engine=dispose_app_database_engine,
+        shutdown_otel=shutdown_otel,
     )
 
 
@@ -79,6 +82,7 @@ async def test_shutdown_closes_mcp_client_and_disposes_resources(
     assert main.app.state.mcp_client is None
     lifecycle_mocks.dispose_query_database_engine.assert_called_once_with()
     lifecycle_mocks.dispose_app_database_engine.assert_awaited_once_with()
+    lifecycle_mocks.shutdown_otel.assert_called_once_with()
 
 
 def test_mcp_startup_failure_fails_application_startup_cleanly(
@@ -93,3 +97,4 @@ def test_mcp_startup_failure_fails_application_startup_cleanly(
     assert main.app.state.mcp_client is None
     lifecycle_mocks.dispose_query_database_engine.assert_called_once_with()
     lifecycle_mocks.dispose_app_database_engine.assert_awaited_once_with()
+    lifecycle_mocks.shutdown_otel.assert_called_once_with()
