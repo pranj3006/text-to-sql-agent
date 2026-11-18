@@ -13,6 +13,7 @@ from text_to_sql_agent.app.text_to_sql import (
     answer_question,
     dispose_query_database_engine,
 )
+from text_to_sql_agent.app import text_to_sql_v2
 from text_to_sql_agent.app.core.config import settings
 from text_to_sql_agent.app.core.exceptions import register_exception_handlers
 from text_to_sql_agent.app.core.logging import configure_logging, get_logger
@@ -142,20 +143,8 @@ async def mcp_query(
     client: Annotated[MCPClient, Depends(get_mcp_client)],
     request: QuestionRequest
     ):
-
-    result = await client.call_tool(
-        "search_schema",
-        {
-            "query": query,
-            "limit": 5,
-        },
-    )
-
-    return result.structured_content
-
-
     try:
-        result = await answer_question_mcp(
+        result = await text_to_sql_v2.answer_question(
                     client=client,
                     query=request.question)
         return result.structured_content
