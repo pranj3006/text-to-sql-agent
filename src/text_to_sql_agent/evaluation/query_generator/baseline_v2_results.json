@@ -1,9 +1,9 @@
 {
   "total": 5,
-  "passed": 3,
-  "failed": 2,
+  "passed": 4,
+  "failed": 1,
   "errors": 0,
-  "accuracy": 0.6,
+  "accuracy": 0.8,
   "results": [
     {
       "id": "Q02",
@@ -66,28 +66,24 @@
         }
       ],
       "generated_sql": "SELECT p.product_name, COALESCE(SUM(oi.quantity * oi.unit_price * (1 - oi.discount_pct)), 0) AS net_revenue FROM \"public\".order_items AS oi JOIN \"public\".orders AS o ON oi.order_id = o.order_id JOIN \"public\".products AS p ON oi.product_id = p.product_id WHERE o.status = 'completed' GROUP BY p.product_name ORDER BY net_revenue DESC LIMIT 5",
-      "latency_seconds": 4.404
+      "latency_seconds": 9.103
     },
     {
       "id": "Q03",
       "question": "What is the net revenue by customer region?",
-      "status": "FAIL",
+      "status": "PASS",
       "expected_columns": [
         "region",
         "net_revenue"
       ],
-      "result_match": false,
-      "output_schema_match": false,
+      "result_match": true,
+      "output_schema_match": true,
       "actual_columns": [
-        "customer_region",
+        "region",
         "net_revenue"
       ],
-      "missing_columns": [
-        "region"
-      ],
-      "extra_columns": [
-        "customer_region"
-      ],
+      "missing_columns": [],
+      "extra_columns": [],
       "expected_rows": [
         {
           "region": "East",
@@ -108,24 +104,24 @@
       ],
       "actual_rows": [
         {
-          "customer_region": "East",
+          "region": "East",
           "net_revenue": "2720.000000"
         },
         {
-          "customer_region": "North",
+          "region": "North",
           "net_revenue": "15840.000000"
         },
         {
-          "customer_region": "South",
+          "region": "South",
           "net_revenue": "6980.000000"
         },
         {
-          "customer_region": "West",
+          "region": "West",
           "net_revenue": "16735.000000"
         }
       ],
-      "generated_sql": "SELECT c.region AS customer_region, COALESCE(SUM(oi.quantity * oi.unit_price * (1 - oi.discount_pct)), 0) AS net_revenue FROM \"public\".customers AS c JOIN \"public\".orders AS o ON c.customer_id = o.customer_id JOIN \"public\".order_items AS oi ON o.order_id = oi.order_id WHERE o.status = 'completed' GROUP BY c.region ORDER BY c.region LIMIT 100",
-      "latency_seconds": 2.871
+      "generated_sql": "SELECT c.region, COALESCE(SUM(oi.quantity * oi.unit_price * (1 - oi.discount_pct)), 0) AS net_revenue FROM \"public\".customers AS c JOIN \"public\".orders AS o ON c.customer_id = o.customer_id JOIN \"public\".order_items AS oi ON o.order_id = oi.order_id WHERE o.status = 'completed' GROUP BY c.region ORDER BY c.region LIMIT 100",
+      "latency_seconds": 5.737
     },
     {
       "id": "Q04",
@@ -152,7 +148,7 @@
         }
       ],
       "generated_sql": "SELECT COUNT(*) AS completed_order_count FROM \"public\".orders WHERE status = 'completed' AND order_date >= CAST('2026-04-01' AS DATE) AND order_date < CAST('2026-07-01' AS DATE) LIMIT 100",
-      "latency_seconds": 2.502
+      "latency_seconds": 4.602
     },
     {
       "id": "Q07",
@@ -199,7 +195,7 @@
         }
       ],
       "generated_sql": "SELECT p.category AS category, COALESCE(SUM(oi.quantity * oi.unit_price * (1 - oi.discount_pct)), 0) AS net_revenue FROM \"public\".order_items AS oi JOIN \"public\".orders AS o ON oi.order_id = o.order_id JOIN \"public\".products AS p ON oi.product_id = p.product_id WHERE o.status = 'completed' GROUP BY p.category ORDER BY p.category LIMIT 100",
-      "latency_seconds": 3.708
+      "latency_seconds": 4.061
     },
     {
       "id": "Q09",
@@ -230,7 +226,7 @@
         }
       ],
       "generated_sql": "SELECT COALESCE(SUM(oi.quantity * oi.unit_price * (1 - oi.discount_pct)), 0) AS net_line_value FROM \"public\".orders AS o JOIN \"public\".order_items AS oi ON o.order_id = oi.order_id WHERE o.status = 'cancelled' LIMIT 100",
-      "latency_seconds": 2.684
+      "latency_seconds": 3.6
     }
   ]
 }

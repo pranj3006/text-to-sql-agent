@@ -42,14 +42,14 @@ def registered_sql_tools(monkeypatch: pytest.MonkeyPatch):
 
     import text_to_sql_agent.mcp_app.tools.sql_readonly_execution_tool as execution
     import text_to_sql_agent.mcp_app.tools.sql_validation_tool as validation
-    import text_to_sql_agent.app.text_to_sql_v2 as text_to_sql_v2
+    import text_to_sql_agent.app.services.execute_sql_service as execute_sql_service
 
     importlib.reload(validation)
     importlib.reload(execution)
     monkeypatch.setattr(
         execution,
         "execute_sql",
-        lambda sql: text_to_sql_v2.execute_sql(sql, engine=engine),
+        lambda sql: execute_sql_service.execute_sql(sql, engine=engine),
     )
 
     mcp = DummyMCP()

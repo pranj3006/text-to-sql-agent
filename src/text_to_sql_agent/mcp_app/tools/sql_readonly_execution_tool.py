@@ -5,7 +5,7 @@ from mcp.server.mcpserver import MCPServer
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError
 
-from text_to_sql_agent.app.text_to_sql_v2 import execute_sql
+from text_to_sql_agent.app.services.execute_sql_service import execute_sql
 
 
 logger = logging.getLogger(__name__)

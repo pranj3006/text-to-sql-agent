@@ -8,13 +8,21 @@ from pathlib import Path
 
 from sqlalchemy import text
 
-from text_to_sql_agent.app.text_to_sql_v2 import (
+from text_to_sql_agent.app.services.core_service import (
     dispose_query_database_engine,
-    generate_sql,
     get_query_database_engine,
     get_schema_context,
+)
+from text_to_sql_agent.app.services.validate_sql_service import (
     validate_sql,
 )
+from text_to_sql_agent.app.services.generate_sql_service import (
+    generate_sql,
+)
+from text_to_sql_agent.app.services.execute_sql_service import (
+    execute_sql,
+)
+
 from text_to_sql_agent.app.rag.schema_retriever import (
     retrieve_schema_documents,
 )

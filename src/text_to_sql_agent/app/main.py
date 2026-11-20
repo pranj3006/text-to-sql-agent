@@ -13,7 +13,7 @@ from text_to_sql_agent.app.text_to_sql import (
     answer_question,
     dispose_query_database_engine,
 )
-from text_to_sql_agent.app import text_to_sql_v2
+from text_to_sql_agent.app.services.query_service import answer_query
 from text_to_sql_agent.app.core.config import settings
 from text_to_sql_agent.app.core.exceptions import register_exception_handlers
 from text_to_sql_agent.app.core.logging import configure_logging, get_logger
@@ -144,9 +144,9 @@ async def mcp_query(
     request: QuestionRequest
     ):
     try:
-        result = await text_to_sql_v2.answer_question(
+        result = await answer_query(
                     client=client,
-                    query=request.question)
+                    question=request.question)
         return result.structured_content
     except ValueError as exc:
         print("exc",exc)
